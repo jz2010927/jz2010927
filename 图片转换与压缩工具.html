@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图片转换与压缩工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            secondary: '#10b981',
+            light: '#f3f4f6',
+            dark: '#1f2937'
+          },
+          fontFamily: {
+            inter: ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .upload-area-active {
+        @apply border-primary bg-blue-50;
+      }
+      .transition-all-300 {
+        @apply transition-all duration-300 ease-in-out;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-inter text-dark min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-6xl">
+    <!-- Header -->
+    <header class="text-center mb-12">
+      <h1 class="text-4xl font-bold text-primary mb-2">图片转换与压缩工具</h1>
+      <p class="text-gray-600">批量处理图片格式转换和智能压缩</p>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+      <!-- Upload Section -->
+      <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold mb-4">上传图片</h2>
+        <div 
+          id="upload-area" 
+          class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer transition-all-300"
+        >
+          <div class="flex flex-col items-center justify-center">
+            <i data-lucide="upload" class="w-12 h-12 text-gray-400 mb-4"></i>
+            <p class="text-gray-600 mb-2">拖拽图片到此处或点击上传</p>
+            <p class="text-sm text-gray-500 mb-4">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG等格式，单次最多处理500张图片</p>
+            <input 
+              type="file" 
+              id="file-input" 
+              class="hidden" 
+              multiple 
+              accept=".png,.bmp,.jpg,.jpeg,.avif,.heic,.heif,.svg"
+            >
+            <button 
+              id="upload-btn" 
+              class="bg-primary hover:bg-blue-600 text-white font-medium py-2 px-6 rounded-md transition-all-300"
+            >
+              选择图片
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings Section -->
+      <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-semibold mb-4">功能设置</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">压缩质量</label>
+            <div class="flex items-center">
+              <input 
+                type="range" 
+                id="quality-slider" 
+                min="10" 
+                max="100" 
+                value="90" 
+                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              >
+              <span id="quality-value" class="ml-4 text-sm font-medium text-primary">90%</span>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">转换为WebP格式</label>
+            <div class="flex items-center">
+              <input 
+                type="checkbox" 
+                id="convert-to-webp" 
+                checked 
+                class="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded"
+              >
+              <label for="convert-to-webp" class="ml-2 text-sm text-gray-700">是</label>
+            </div>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-2">尺寸限制</label>
+            <div class="flex items-center space-x-4">
+              <div class="flex-1">
+                <label class="block text-xs text-gray-500 mb-1">宽度</label>
+                <input 
+                  type="number" 
+                  id="width-limit" 
+                  value="1000" 
+                  min="100" 
+                  max="2000" 
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+              </div>
+              <span class="text-sm text-gray-500">×</span>
+              <div class="flex-1">
+                <label class="block text-xs text-gray-500 mb-1">高度</label>
+                <input 
+                  type="number" 
+                  id="height-limit" 
+                  value="1000" 
+                  min="100" 
+                  max="2000" 
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-6 text-center">
+          <button 
+            id="process-btn" 
+            class="bg-primary hover:bg-blue-600 text-white font-medium py-2 px-6 rounded-md transition-all-300 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            disabled
+          >
+            开始处理
+          </button>
+        </div>
+      </section>
+
+      <!-- Results Section -->
+      <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-semibold">处理结果</h2>
+          <button 
+            id="download-all-btn" 
+            class="bg-secondary hover:bg-green-600 text-white font-medium py-2 px-6 rounded-md transition-all-300 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            disabled
+          >
+            批量下载
+          </button>
+        </div>
+        <div id="results-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <!-- Results will be dynamically added here -->
+        </div>
+        <div id="empty-results" class="text-center py-12 text-gray-500">
+          <i data-lucide="image" class="w-12 h-12 mx-auto mb-4 text-gray-300"></i>
+          <p>暂无处理结果</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center text-gray-500 text-sm mt-12">
+      <p>© 2024 图片转换与压缩工具</p>
+    </footer>
+  </div>
+
+  <script>
+    // Wait for DOM to load
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded');
+      // Initialize Lucide icons
+      lucide.createIcons();
+
+      // Global variables
+      let selectedFiles = [];
+      let processedFiles = [];
+      let quality = 90;
+      let widthLimit = 1000;
+      let heightLimit = 1000;
+      let convertToWebP = true;
+
+      // DOM elements
+      const uploadArea = document.getElementById('upload-area');
+      const fileInput = document.getElementById('file-input');
+      const uploadBtn = document.getElementById('upload-btn');
+      const qualitySlider = document.getElementById('quality-slider');
+      const qualityValue = document.getElementById('quality-value');
+      const convertToWebPCheckbox = document.getElementById('convert-to-webp');
+      const widthLimitInput = document.getElementById('width-limit');
+      const heightLimitInput = document.getElementById('height-limit');
+      const processBtn = document.getElementById('process-btn');
+      const downloadAllBtn = document.getElementById('download-all-btn');
+      const resultsContainer = document.getElementById('results-container');
+      const emptyResults = document.getElementById('empty-results');
+      
+      console.log('DOM elements:', {
+        uploadArea: !!uploadArea,
+        fileInput: !!fileInput,
+        uploadBtn: !!uploadBtn,
+        qualitySlider: !!qualitySlider,
+        qualityValue: !!qualityValue,
+        convertToWebPCheckbox: !!convertToWebPCheckbox,
+        widthLimitInput: !!widthLimitInput,
+        heightLimitInput: !!heightLimitInput,
+        processBtn: !!processBtn,
+        downloadAllBtn: !!downloadAllBtn,
+        resultsContainer: !!resultsContainer,
+        emptyResults: !!emptyResults
+      });
+
+      // Drag and drop handlers
+      function handleDragOver(e) {
+        e.preventDefault();
+        uploadArea.classList.add('upload-area-active');
+      }
+
+      function handleDragLeave(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('upload-area-active');
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('upload-area-active');
+        const files = Array.from(e.dataTransfer.files);
+        handleFiles(files);
+      }
+
+      // File selection handler
+      function handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        handleFiles(files);
+      }
+
+      // Handle files
+      function handleFiles(files) {
+        // Filter image files (exclude webp)
+        const imageFiles = files.filter(file => {
+          const type = file.type;
+          return type.startsWith('image/') && !type.includes('webp');
+        });
+        
+        // Check file count limit
+        if (imageFiles.length > 500) {
+          alert('单次最多处理500张图片');
+          return;
+        }
+        
+        selectedFiles = imageFiles;
+        updateUI();
+      }
+
+      // Update UI based on selected files
+      function updateUI() {
+        if (selectedFiles.length > 0) {
+          processBtn.disabled = false;
+          uploadArea.classList.add('border-secondary', 'bg-green-50');
+          const uploadContent = uploadArea.querySelector('div');
+          uploadContent.innerHTML = `
+            <i data-lucide="check-circle" class="w-12 h-12 text-secondary mb-4"></i>
+            <p class="text-secondary font-medium mb-2">已选择 ${selectedFiles.length} 张图片</p>
+            <p class="text-sm text-gray-500">点击重新选择</p>
+          `;
+          lucide.createIcons();
+        } else {
+          processBtn.disabled = true;
+          uploadArea.classList.remove('border-secondary', 'bg-green-50');
+          const uploadContent = uploadArea.querySelector('div');
+          uploadContent.innerHTML = `
+            <i data-lucide="upload" class="w-12 h-12 text-gray-400 mb-4"></i>
+            <p class="text-gray-600 mb-2">拖拽图片到此处或点击上传</p>
+            <p class="text-sm text-gray-500">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG等格式，单次最多处理500张图片</p>
+          `;
+          lucide.createIcons();
+        }
+      }
+
+      // Quality change handler
+      function handleQualityChange(e) {
+        quality = parseInt(e.target.value);
+        qualityValue.textContent = `${quality}%`;
+      }
+
+      // Convert to WebP change handler
+      function handleConvertToWebPChange(e) {
+        convertToWebP = e.target.checked;
+      }
+
+      // Width limit change handler
+      function handleWidthLimitChange(e) {
+        widthLimit = parseInt(e.target.value);
+        if (isNaN(widthLimit) || widthLimit < 100) {
+          widthLimit = 100;
+          e.target.value = 100;
+        } else if (widthLimit > 2000) {
+          widthLimit = 2000;
+          e.target.value = 2000;
+        }
+      }
+
+      // Height limit change handler
+      function handleHeightLimitChange(e) {
+        heightLimit = parseInt(e.target.value);
+        if (isNaN(heightLimit) || heightLimit < 100) {
+          heightLimit = 100;
+          e.target.value = 100;
+        } else if (heightLimit > 2000) {
+          heightLimit = 2000;
+          e.target.value = 2000;
+        }
+      }
+
+      // Process files
+      async function processFiles() {
+        if (selectedFiles.length === 0) return;
+        
+        processBtn.disabled = true;
+        processBtn.textContent = '处理中...';
+        
+        processedFiles = [];
+        resultsContainer.innerHTML = '';
+        emptyResults.classList.add('hidden');
+        
+        // Process files in batches to avoid blocking the UI
+        const batchSize = 10;
+        for (let i = 0; i < selectedFiles.length; i += batchSize) {
+          const batch = selectedFiles.slice(i, i + batchSize);
+          await Promise.all(batch.map(processFile));
+        }
+        
+        processBtn.textContent = '开始处理';
+        processBtn.disabled = false;
+        downloadAllBtn.disabled = processedFiles.length === 0;
+      }
+
+      // Process individual file
+      async function processFile(file) {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              // Create canvas for resizing and conversion
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              
+              // Calculate new dimensions while maintaining aspect ratio
+              let width = img.width;
+              let height = img.height;
+              
+              if (width > widthLimit || height > heightLimit) {
+                const ratio = Math.min(widthLimit / width, heightLimit / height);
+                width *= ratio;
+                height *= ratio;
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              
+              // Draw image on canvas
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // Determine output format
+              const outputFormat = convertToWebP ? 'image/webp' : file.type;
+              const outputExtension = convertToWebP ? '.webp' : getFileExtension(file.name);
+              
+              // Convert with quality setting
+              canvas.toBlob((blob) => {
+                // Optimize file size if needed
+                optimizeFileSize(blob, file.name, outputFormat).then(optimizedBlob => {
+                  const processedFile = {
+                    id: Date.now() + Math.random(),
+                    originalFile: file,
+                    originalSize: file.size,
+                    processedFile: optimizedBlob,
+                    processedSize: optimizedBlob.size,
+                    outputFormat: outputFormat,
+                    outputExtension: outputExtension,
+                    status: 'completed'
+                  };
+                  
+                  processedFiles.push(processedFile);
+                  displayResult(processedFile);
+                  resolve();
+                });
+              }, outputFormat, quality / 100);
+            };
+            img.src = e.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // Get file extension
+      function getFileExtension(filename) {
+        return filename.substring(filename.lastIndexOf('.'));
+      }
+
+      // Optimize file size to be under 100KB
+      async function optimizeFileSize(blob, fileName, outputFormat) {
+        if (blob.size <= 100 * 1024) {
+          return blob;
+        }
+        
+        // Create image from blob
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Try lower quality first
+            let currentQuality = quality / 100;
+            
+            const optimize = () => {
+              canvas.width = img.width;
+              canvas.height = img.height;
+              ctx.drawImage(img, 0, 0);
+              
+              canvas.toBlob((newBlob) => {
+                if (newBlob.size <= 100 * 1024 || currentQuality <= 0.1) {
+                  resolve(newBlob);
+                } else {
+                  currentQuality -= 0.1;
+                  optimize();
+                }
+              }, outputFormat, currentQuality);
+            };
+            
+            optimize();
+          };
+          img.src = URL.createObjectURL(blob);
+        });
+      }
+
+      // Display processing result
+      function displayResult(file) {
+        const resultCard = document.createElement('div');
+        resultCard.className = 'border border-gray-200 rounded-lg p-4';
+        
+        const originalSize = formatFileSize(file.originalSize);
+        const processedSize = formatFileSize(file.processedSize);
+        const sizeReduction = Math.round((1 - file.processedSize / file.originalSize) * 100);
+        const outputFormat = file.outputFormat.split('/')[1].toUpperCase();
+        
+        resultCard.innerHTML = `
+          <div class="flex justify-between items-start mb-2">
+            <h3 class="font-medium text-sm truncate" title="${file.originalFile.name}">${file.originalFile.name}</h3>
+            <button class="download-btn text-primary hover:text-blue-600" data-id="${file.id}">
+              <i data-lucide="download" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div class="flex gap-2 mb-3">
+            <div class="flex-1">
+              <p class="text-xs text-gray-500">原图</p>
+              <p class="text-sm font-medium">${originalSize}</p>
+            </div>
+            <div class="flex-1">
+              <p class="text-xs text-gray-500">${outputFormat}</p>
+              <p class="text-sm font-medium text-secondary">${processedSize}</p>
+            </div>
+            <div class="flex-1">
+              <p class="text-xs text-gray-500">节省</p>
+              <p class="text-sm font-medium text-green-600">${sizeReduction}%</p>
+            </div>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-1.5">
+            <div class="bg-secondary h-1.5 rounded-full" style="width: ${sizeReduction}%"></div>
+          </div>
+        `;
+        
+        resultsContainer.appendChild(resultCard);
+        lucide.createIcons();
+        
+        // Add download event listener
+        const downloadBtn = resultCard.querySelector('.download-btn');
+        downloadBtn.addEventListener('click', () => downloadFile(file));
+      }
+
+      // Download individual file
+      function downloadFile(file) {
+        const url = URL.createObjectURL(file.processedFile);
+        const a = document.createElement('a');
+        a.href = url;
+        const originalName = file.originalFile.name;
+        const baseName = originalName.substring(0, originalName.lastIndexOf('.'));
+        a.download = baseName + file.outputExtension;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // Download all files as zip
+      async function downloadAllFiles() {
+        if (processedFiles.length === 0) return;
+        
+        const zip = new JSZip();
+        
+        for (const file of processedFiles) {
+          const originalName = file.originalFile.name;
+          const baseName = originalName.substring(0, originalName.lastIndexOf('.'));
+          const fileName = baseName + file.outputExtension;
+          zip.file(fileName, file.processedFile);
+        }
+        
+        zip.generateAsync({ type: 'blob' }).then((blob) => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `processed-images-${Date.now()}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+      }
+
+      // Format file size
+      function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      // Event listeners
+      console.log('Binding event listeners...');
+      uploadArea.addEventListener('click', (e) => {
+        // 防止点击上传按钮时触发
+        if (!e.target.closest('#upload-btn')) {
+          console.log('Upload area clicked');
+          fileInput.click();
+        }
+      });
+      uploadBtn.addEventListener('click', () => {
+        console.log('Upload button clicked');
+        fileInput.click();
+      });
+      uploadArea.addEventListener('dragover', handleDragOver);
+      uploadArea.addEventListener('dragleave', handleDragLeave);
+      uploadArea.addEventListener('drop', handleDrop);
+      fileInput.addEventListener('change', handleFileSelect);
+      qualitySlider.addEventListener('input', (e) => {
+        console.log('Slider input event:', e.target.value);
+        handleQualityChange(e);
+      });
+      qualitySlider.addEventListener('change', (e) => {
+        console.log('Slider change event:', e.target.value);
+        handleQualityChange(e);
+      });
+      convertToWebPCheckbox.addEventListener('change', handleConvertToWebPChange);
+      widthLimitInput.addEventListener('change', handleWidthLimitChange);
+      heightLimitInput.addEventListener('change', handleHeightLimitChange);
+      processBtn.addEventListener('click', processFiles);
+      downloadAllBtn.addEventListener('click', downloadAllFiles);
+      console.log('Event listeners bound');
+      
+      // Test slider value
+      console.log('Initial slider value:', qualitySlider.value);
+    });
+  </script>
+</body>
+</html>
