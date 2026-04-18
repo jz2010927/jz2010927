@@ -165,6 +165,9 @@
           <i data-lucide="image" class="w-12 h-12 mx-auto mb-4 text-gray-300"></i>
           <p>暂无处理结果</p>
         </div>
+        <div id="pagination-container" class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 hidden">
+          <!-- Pagination controls will be dynamically added here -->
+        </div>
       </section>
     </main>
 
@@ -188,6 +191,8 @@
       let widthLimit = 1000;
       let heightLimit = 1000;
       let convertToWebP = true;
+      let currentPage = 1;
+      const itemsPerPage = 25;
 
       // DOM elements
       const uploadArea = document.getElementById('upload-area');
@@ -202,6 +207,7 @@
       const downloadAllBtn = document.getElementById('download-all-btn');
       const resultsContainer = document.getElementById('results-container');
       const emptyResults = document.getElementById('empty-results');
+      const paginationContainer = document.getElementById('pagination-container');
       
       console.log('DOM elements:', {
         uploadArea: !!uploadArea,
@@ -215,7 +221,8 @@
         processBtn: !!processBtn,
         downloadAllBtn: !!downloadAllBtn,
         resultsContainer: !!resultsContainer,
-        emptyResults: !!emptyResults
+        emptyResults: !!emptyResults,
+        paginationContainer: !!paginationContainer
       });
 
       // Drag and drop handlers
@@ -328,14 +335,23 @@
         processBtn.textContent = '处理中...';
         
         processedFiles = [];
+        currentPage = 1;
         resultsContainer.innerHTML = '';
         emptyResults.classList.add('hidden');
+        paginationContainer.classList.add('hidden');
         
         // Process files in batches to avoid blocking the UI
         const batchSize = 10;
         for (let i = 0; i < selectedFiles.length; i += batchSize) {
           const batch = selectedFiles.slice(i, i + batchSize);
           await Promise.all(batch.map(processFile));
+        }
+        
+        // Render first page
+        if (processedFiles.length > 0) {
+          renderResults();
+          paginationContainer.classList.remove('hidden');
+          renderPagination();
         }
         
         processBtn.textContent = '开始处理';
@@ -390,7 +406,6 @@
                   };
                   
                   processedFiles.push(processedFile);
-                  displayResult(processedFile);
                   resolve();
                 });
               }, outputFormat, quality / 100);
@@ -443,8 +458,8 @@
         });
       }
 
-      // Display processing result
-      function displayResult(file) {
+      // Create result card element
+      function createResultCard(file) {
         const resultCard = document.createElement('div');
         resultCard.className = 'border border-gray-200 rounded-lg p-4';
         
@@ -479,12 +494,150 @@
           </div>
         `;
         
-        resultsContainer.appendChild(resultCard);
-        lucide.createIcons();
-        
         // Add download event listener
         const downloadBtn = resultCard.querySelector('.download-btn');
         downloadBtn.addEventListener('click', () => downloadFile(file));
+        
+        return resultCard;
+      }
+
+      // Render results for current page
+      function renderResults() {
+        resultsContainer.innerHTML = '';
+        
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const currentItems = processedFiles.slice(startIndex, endIndex);
+        
+        currentItems.forEach(file => {
+          const resultCard = createResultCard(file);
+          resultsContainer.appendChild(resultCard);
+        });
+        
+        lucide.createIcons();
+      }
+
+      // Render pagination controls
+      function renderPagination() {
+        const totalPages = Math.ceil(processedFiles.length / itemsPerPage);
+        
+        if (totalPages <= 1) {
+          paginationContainer.classList.add('hidden');
+          return;
+        }
+        
+        paginationContainer.classList.remove('hidden');
+        
+        let html = `
+          <div class="text-sm text-gray-600">
+            第 ${currentPage} 页 / 共 ${totalPages} 页 (共 ${processedFiles.length} 个结果)
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="prev-btn" class="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" ${currentPage === 1 ? 'disabled' : ''}>
+              上一页
+            </button>
+            <div class="flex gap-1" id="page-numbers">
+              ${renderPageNumbers(totalPages)}
+            </div>
+            <button id="next-btn" class="px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" ${currentPage === totalPages ? 'disabled' : ''}>
+              下一页
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600">跳转到</span>
+            <input type="number" id="go-to-page" min="1" max="${totalPages}" value="${currentPage}" class="w-20 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            <button id="go-btn" class="px-3 py-1.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-blue-600">
+              跳转
+            </button>
+          </div>
+        `;
+        
+        paginationContainer.innerHTML = html;
+        
+        // Add event listeners
+        document.getElementById('prev-btn').addEventListener('click', goToPrevPage);
+        document.getElementById('next-btn').addEventListener('click', goToNextPage);
+        document.getElementById('go-btn').addEventListener('click', goToPage);
+        document.getElementById('go-to-page').addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') goToPage();
+        });
+        
+        // Add click listeners to page numbers
+        const pageNumberButtons = paginationContainer.querySelectorAll('.page-number-btn');
+        pageNumberButtons.forEach(btn => {
+          btn.addEventListener('click', () => {
+            currentPage = parseInt(btn.dataset.page);
+            renderResults();
+            renderPagination();
+          });
+        });
+      }
+
+      // Render page number buttons
+      function renderPageNumbers(totalPages) {
+        let html = '';
+        const maxVisible = 5;
+        let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let end = Math.min(totalPages, start + maxVisible - 1);
+        
+        if (end - start + 1 < maxVisible) {
+          start = Math.max(1, end - maxVisible + 1);
+        }
+        
+        if (start > 1) {
+          html += `<button class="page-number-btn px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50" data-page="1">1</button>`;
+          if (start > 2) {
+            html += `<span class="px-1 text-gray-400">...</span>`;
+          }
+        }
+        
+        for (let i = start; i <= end; i++) {
+          const isActive = i === currentPage;
+          html += `<button class="page-number-btn px-3 py-1.5 border rounded-md text-sm font-medium ${isActive ? 'bg-primary text-white border-primary' : 'border-gray-300 hover:bg-gray-50'}" data-page="${i}">${i}</button>`;
+        }
+        
+        if (end < totalPages) {
+          if (end < totalPages - 1) {
+            html += `<span class="px-1 text-gray-400">...</span>`;
+          }
+          html += `<button class="page-number-btn px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50" data-page="${totalPages}">${totalPages}</button>`;
+        }
+        
+        return html;
+      }
+
+      // Go to previous page
+      function goToPrevPage() {
+        if (currentPage > 1) {
+          currentPage--;
+          renderResults();
+          renderPagination();
+        }
+      }
+
+      // Go to next page
+      function goToNextPage() {
+        const totalPages = Math.ceil(processedFiles.length / itemsPerPage);
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderResults();
+          renderPagination();
+        }
+      }
+
+      // Go to specific page
+      function goToPage() {
+        const input = document.getElementById('go-to-page');
+        const page = parseInt(input.value);
+        const totalPages = Math.ceil(processedFiles.length / itemsPerPage);
+        
+        if (!isNaN(page) && page >= 1 && page <= totalPages) {
+          currentPage = page;
+          renderResults();
+          renderPagination();
+        } else {
+          input.value = currentPage;
+        }
       }
 
       // Download individual file
