@@ -58,13 +58,13 @@
           <div class="flex flex-col items-center justify-center">
             <i data-lucide="upload" class="w-12 h-12 text-gray-400 mb-4"></i>
             <p class="text-gray-600 mb-2">拖拽图片到此处或点击上传</p>
-            <p class="text-sm text-gray-500 mb-4">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG等格式，单次最多处理500张图片</p>
+            <p class="text-sm text-gray-500 mb-4">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG、WebP等格式，会自动跳过已是目标格式的图片，单次最多处理500张图片</p>
             <input 
               type="file" 
               id="file-input" 
               class="hidden" 
               multiple 
-              accept=".png,.bmp,.jpg,.jpeg,.avif,.heic,.heif,.svg"
+              accept=".png,.bmp,.jpg,.jpeg,.avif,.heic,.heif,.svg,.webp"
             >
             <button 
               id="upload-btn" 
@@ -95,16 +95,16 @@
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">转换为WebP格式</label>
-            <div class="flex items-center">
-              <input 
-                type="checkbox" 
-                id="convert-to-webp" 
-                checked 
-                class="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded"
-              >
-              <label for="convert-to-webp" class="ml-2 text-sm text-gray-700">是</label>
-            </div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">目标格式</label>
+            <select 
+              id="target-format" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="webp">WebP</option>
+              <option value="png">PNG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="bmp">BMP</option>
+            </select>
           </div>
           <div class="md:col-span-2">
             <label class="block text-sm font-medium text-gray-700 mb-2">尺寸限制</label>
@@ -190,9 +190,17 @@
       let quality = 90;
       let widthLimit = 1000;
       let heightLimit = 1000;
-      let convertToWebP = true;
+      let targetFormat = 'webp';
       let currentPage = 1;
       const itemsPerPage = 25;
+      
+      // Supported formats map
+      const formatMap = {
+        'webp': { mime: 'image/webp', ext: '.webp' },
+        'png': { mime: 'image/png', ext: '.png' },
+        'jpeg': { mime: 'image/jpeg', ext: '.jpg' },
+        'bmp': { mime: 'image/bmp', ext: '.bmp' }
+      };
 
       // DOM elements
       const uploadArea = document.getElementById('upload-area');
@@ -200,7 +208,7 @@
       const uploadBtn = document.getElementById('upload-btn');
       const qualitySlider = document.getElementById('quality-slider');
       const qualityValue = document.getElementById('quality-value');
-      const convertToWebPCheckbox = document.getElementById('convert-to-webp');
+      const targetFormatSelect = document.getElementById('target-format');
       const widthLimitInput = document.getElementById('width-limit');
       const heightLimitInput = document.getElementById('height-limit');
       const processBtn = document.getElementById('process-btn');
@@ -215,7 +223,7 @@
         uploadBtn: !!uploadBtn,
         qualitySlider: !!qualitySlider,
         qualityValue: !!qualityValue,
-        convertToWebPCheckbox: !!convertToWebPCheckbox,
+        targetFormatSelect: !!targetFormatSelect,
         widthLimitInput: !!widthLimitInput,
         heightLimitInput: !!heightLimitInput,
         processBtn: !!processBtn,
@@ -249,12 +257,18 @@
         handleFiles(files);
       }
 
+      // Get file format from filename
+      function getFileFormat(filename) {
+        const ext = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+        if (ext === 'jpg') return 'jpeg';
+        return ext;
+      }
+      
       // Handle files
       function handleFiles(files) {
-        // Filter image files (exclude webp)
+        // Filter image files
         const imageFiles = files.filter(file => {
-          const type = file.type;
-          return type.startsWith('image/') && !type.includes('webp');
+          return file.type.startsWith('image/');
         });
         
         // Check file count limit
@@ -298,9 +312,9 @@
         qualityValue.textContent = `${quality}%`;
       }
 
-      // Convert to WebP change handler
-      function handleConvertToWebPChange(e) {
-        convertToWebP = e.target.checked;
+      // Target format change handler
+      function handleTargetFormatChange(e) {
+        targetFormat = e.target.value;
       }
 
       // Width limit change handler
@@ -362,6 +376,26 @@
       // Process individual file
       async function processFile(file) {
         return new Promise((resolve) => {
+          // Get file format
+          const fileFormat = getFileFormat(file.name);
+          
+          // Skip if already target format
+          if (fileFormat === targetFormat) {
+            const processedFile = {
+              id: Date.now() + Math.random(),
+              originalFile: file,
+              originalSize: file.size,
+              processedFile: file,
+              processedSize: file.size,
+              outputFormat: formatMap[targetFormat].mime,
+              outputExtension: formatMap[targetFormat].ext,
+              status: 'skipped'
+            };
+            processedFiles.push(processedFile);
+            resolve();
+            return;
+          }
+          
           const reader = new FileReader();
           reader.onload = (e) => {
             const img = new Image();
@@ -387,8 +421,8 @@
               ctx.drawImage(img, 0, 0, width, height);
               
               // Determine output format
-              const outputFormat = convertToWebP ? 'image/webp' : file.type;
-              const outputExtension = convertToWebP ? '.webp' : getFileExtension(file.name);
+              const outputFormat = formatMap[targetFormat].mime;
+              const outputExtension = formatMap[targetFormat].ext;
               
               // Convert with quality setting
               canvas.toBlob((blob) => {
@@ -468,31 +502,46 @@
         const sizeReduction = Math.round((1 - file.processedSize / file.originalSize) * 100);
         const outputFormat = file.outputFormat.split('/')[1].toUpperCase();
         
-        resultCard.innerHTML = `
-          <div class="flex justify-between items-start mb-2">
-            <h3 class="font-medium text-sm truncate" title="${file.originalFile.name}">${file.originalFile.name}</h3>
-            <button class="download-btn text-primary hover:text-blue-600" data-id="${file.id}">
-              <i data-lucide="download" class="w-4 h-4"></i>
-            </button>
-          </div>
-          <div class="flex gap-2 mb-3">
-            <div class="flex-1">
-              <p class="text-xs text-gray-500">原图</p>
-              <p class="text-sm font-medium">${originalSize}</p>
+        if (file.status === 'skipped') {
+          resultCard.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="font-medium text-sm truncate" title="${file.originalFile.name}">${file.originalFile.name}</h3>
+              <button class="download-btn text-primary hover:text-blue-600" data-id="${file.id}">
+                <i data-lucide="download" class="w-4 h-4"></i>
+              </button>
             </div>
-            <div class="flex-1">
-              <p class="text-xs text-gray-500">${outputFormat}</p>
-              <p class="text-sm font-medium text-secondary">${processedSize}</p>
+            <div class="flex items-center gap-2 text-yellow-600">
+              <i data-lucide="info" class="w-4 h-4"></i>
+              <span class="text-sm font-medium">已是目标格式，已跳过</span>
             </div>
-            <div class="flex-1">
-              <p class="text-xs text-gray-500">节省</p>
-              <p class="text-sm font-medium text-green-600">${sizeReduction}%</p>
+          `;
+        } else {
+          resultCard.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="font-medium text-sm truncate" title="${file.originalFile.name}">${file.originalFile.name}</h3>
+              <button class="download-btn text-primary hover:text-blue-600" data-id="${file.id}">
+                <i data-lucide="download" class="w-4 h-4"></i>
+              </button>
             </div>
-          </div>
-          <div class="w-full bg-gray-200 rounded-full h-1.5">
-            <div class="bg-secondary h-1.5 rounded-full" style="width: ${sizeReduction}%"></div>
-          </div>
-        `;
+            <div class="flex gap-2 mb-3">
+              <div class="flex-1">
+                <p class="text-xs text-gray-500">原图</p>
+                <p class="text-sm font-medium">${originalSize}</p>
+              </div>
+              <div class="flex-1">
+                <p class="text-xs text-gray-500">${outputFormat}</p>
+                <p class="text-sm font-medium text-secondary">${processedSize}</p>
+              </div>
+              <div class="flex-1">
+                <p class="text-xs text-gray-500">节省</p>
+                <p class="text-sm font-medium text-green-600">${sizeReduction}%</p>
+              </div>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5">
+              <div class="bg-secondary h-1.5 rounded-full" style="width: ${sizeReduction}%"></div>
+            </div>
+          `;
+        }
         
         // Add download event listener
         const downloadBtn = resultCard.querySelector('.download-btn');
@@ -713,7 +762,7 @@
         console.log('Slider change event:', e.target.value);
         handleQualityChange(e);
       });
-      convertToWebPCheckbox.addEventListener('change', handleConvertToWebPChange);
+      targetFormatSelect.addEventListener('change', handleTargetFormatChange);
       widthLimitInput.addEventListener('change', handleWidthLimitChange);
       heightLimitInput.addEventListener('change', handleHeightLimitChange);
       processBtn.addEventListener('click', processFiles);
