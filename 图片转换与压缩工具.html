@@ -58,7 +58,7 @@
           <div class="flex flex-col items-center justify-center">
             <i data-lucide="upload" class="w-12 h-12 text-gray-400 mb-4"></i>
             <p class="text-gray-600 mb-2">拖拽图片到此处或点击上传</p>
-            <p class="text-sm text-gray-500 mb-4">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG、WebP等格式，会自动跳过已是目标格式的图片，单次最多处理500张图片</p>
+            <p class="text-sm text-gray-500 mb-4">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG、WebP等格式，会自动跳过已是目标格式的图片，单次最多处理2000张图片</p>
             <input 
               type="file" 
               id="file-input" 
@@ -114,9 +114,9 @@
                 <input 
                   type="number" 
                   id="width-limit" 
-                  value="1000" 
+                  value="4096" 
                   min="100" 
-                  max="2000" 
+                  max="8192" 
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 >
               </div>
@@ -126,9 +126,9 @@
                 <input 
                   type="number" 
                   id="height-limit" 
-                  value="1000" 
+                  value="4096" 
                   min="100" 
-                  max="2000" 
+                  max="8192" 
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 >
               </div>
@@ -170,11 +170,6 @@
         </div>
       </section>
     </main>
-
-    <!-- Footer -->
-    <footer class="text-center text-gray-500 text-sm mt-12">
-      <p>© 2024 图片转换与压缩工具</p>
-    </footer>
   </div>
 
   <script>
@@ -188,8 +183,8 @@
       let selectedFiles = [];
       let processedFiles = [];
       let quality = 90;
-      let widthLimit = 1000;
-      let heightLimit = 1000;
+      let widthLimit = 4096;
+      let heightLimit = 4096;
       let targetFormat = 'webp';
       let currentPage = 1;
       const itemsPerPage = 25;
@@ -272,8 +267,8 @@
         });
         
         // Check file count limit
-        if (imageFiles.length > 500) {
-          alert('单次最多处理500张图片');
+        if (imageFiles.length > 2000) {
+          alert('单次最多处理2000张图片');
           return;
         }
         
@@ -300,7 +295,7 @@
           uploadContent.innerHTML = `
             <i data-lucide="upload" class="w-12 h-12 text-gray-400 mb-4"></i>
             <p class="text-gray-600 mb-2">拖拽图片到此处或点击上传</p>
-            <p class="text-sm text-gray-500">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG等格式，单次最多处理500张图片</p>
+            <p class="text-sm text-gray-500">支持PNG、BMP、JPG、JPEG、AVIF、HEIC、HEIF、SVG等格式，单次最多处理2000张图片</p>
           `;
           lucide.createIcons();
         }
@@ -323,9 +318,9 @@
         if (isNaN(widthLimit) || widthLimit < 100) {
           widthLimit = 100;
           e.target.value = 100;
-        } else if (widthLimit > 2000) {
-          widthLimit = 2000;
-          e.target.value = 2000;
+        } else if (widthLimit > 8192) {
+          widthLimit = 8192;
+          e.target.value = 8192;
         }
       }
 
@@ -335,9 +330,9 @@
         if (isNaN(heightLimit) || heightLimit < 100) {
           heightLimit = 100;
           e.target.value = 100;
-        } else if (heightLimit > 2000) {
-          heightLimit = 2000;
-          e.target.value = 2000;
+        } else if (heightLimit > 8192) {
+          heightLimit = 8192;
+          e.target.value = 8192;
         }
       }
 
