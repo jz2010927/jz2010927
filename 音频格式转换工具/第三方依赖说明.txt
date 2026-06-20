@@ -1,0 +1,29 @@
+音频格式转换工具 - 第三方依赖说明
+====================================
+
+本工具在浏览器本地使用以下固定版本依赖：
+
+1. @ffmpeg/ffmpeg 0.12.15
+   License: MIT
+   https://github.com/ffmpegwasm/ffmpeg.wasm
+
+2. @ffmpeg/core 0.12.10
+   FFmpeg WebAssembly 核心。其许可遵循 FFmpeg 及编译时包含的外部库许可。
+   https://github.com/ffmpegwasm/ffmpeg.wasm
+   https://ffmpeg.org/legal.html
+
+3. JSZip 3.10.1
+   License: MIT or GPL-3.0-or-later
+   https://github.com/Stuk/jszip
+
+4. Lucide 0.468.0
+   License: ISC
+   https://github.com/lucide-icons/lucide
+
+所有依赖文件均位于 vendor 目录，页面运行时不会向网络上传音频文件。
+
+如果 vendor\ffmpeg-core\ffmpeg-core.wasm 不存在，启动脚本会在启动本地
+网页服务器前，从以下固定版本地址下载该文件：
+https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm
+
+除首次补充缺失的 FFmpeg WASM 核心外，音频转换过程不会上传文件。

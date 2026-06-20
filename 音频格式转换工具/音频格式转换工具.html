@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>音频格式转换工具</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2'%3E%3Cpath d='M9 18V5l12-2v13'/%3E%3Ccircle cx='6' cy='18' r='3'/%3E%3Ccircle cx='18' cy='16' r='3'/%3E%3C/svg%3E">
+  <script src="vendor/ffmpeg/ffmpeg.js"></script>
+  <script src="vendor/jszip/jszip.min.js"></script>
+  <script src="vendor/lucide/lucide.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-soft: #eff6ff;
+      --success: #10b981;
+      --success-soft: #ecfdf5;
+      --danger: #ef4444;
+      --danger-soft: #fef2f2;
+      --warning: #d97706;
+      --warning-soft: #fffbeb;
+      --text: #172033;
+      --muted: #64748b;
+      --border: #dbe2ea;
+      --surface: #ffffff;
+      --page: #f5f7fa;
+      --shadow: 0 2px 10px rgba(15, 23, 42, 0.07);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { min-width: 320px; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--page);
+      font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button, select, input { font: inherit; }
+    button { border: 0; }
+    button:focus-visible, select:focus-visible, input:focus-visible, .upload-area:focus-visible {
+      outline: 3px solid rgba(37, 99, 235, 0.22);
+      outline-offset: 2px;
+    }
+
+    .app {
+      width: min(1138px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 12px 0 26px;
+    }
+
+    .hero {
+      padding: 0 16px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      margin: 0;
+      color: #111827;
+      font-size: clamp(28px, 3vw, 40px);
+      line-height: 1.22;
+      letter-spacing: 0.01em;
+      font-weight: 760;
+    }
+
+    .hero p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .panel {
+      margin-bottom: 8px;
+      padding: 12px 20px;
+      background: var(--surface);
+      border: 1px solid #dfe4ea;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 8px;
+      font-size: 19px;
+      line-height: 1.3;
+      font-weight: 700;
+    }
+
+    .step {
+      display: inline-grid;
+      width: 26px;
+      height: 26px;
+      flex: 0 0 26px;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .upload-area {
+      min-height: 160px;
+      padding: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed #3b82f6;
+      border-radius: 7px;
+      background: #fff;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .upload-area:hover, .upload-area.dragging {
+      border-color: var(--primary-hover);
+      background: var(--primary-soft);
+    }
+
+    .upload-area.dragging { transform: scale(0.997); }
+
+    .upload-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 680px;
+    }
+
+    .upload-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 8px;
+      color: var(--primary);
+      stroke-width: 1.7;
+    }
+
+    .upload-title {
+      margin: 0 0 3px;
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .upload-hint {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .selected-summary {
+      margin: 8px 0 10px;
+      color: var(--success);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .file-input { display: none; }
+
+    .button {
+      min-height: 38px;
+      padding: 8px 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 650;
+      white-space: nowrap;
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+    }
+
+    .button:hover:not(:disabled) { transform: translateY(-1px); }
+    .button:disabled { cursor: not-allowed; opacity: 0.48; }
+    .button svg { width: 17px; height: 17px; }
+
+    .button-primary {
+      color: #fff;
+      background: var(--primary);
+    }
+    .button-primary:hover:not(:disabled) { background: var(--primary-hover); }
+
+    .button-secondary {
+      color: #334155;
+      background: #fff;
+      border: 1px solid var(--border);
+    }
+    .button-secondary:hover:not(:disabled) { background: #f8fafc; border-color: #c3ccd7; }
+
+    .button-danger {
+      color: var(--danger);
+      background: #fff;
+      border: 1px solid #fecaca;
+    }
+    .button-danger:hover:not(:disabled) { background: var(--danger-soft); }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 5px;
+      color: #273449;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .select-wrap {
+      position: relative;
+    }
+
+    .select-wrap svg {
+      position: absolute;
+      top: 50%;
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+
+    .select-icon {
+      left: 13px;
+      width: 17px;
+      height: 17px;
+      color: #334155;
+    }
+
+    .select-chevron {
+      right: 12px;
+      width: 15px;
+      height: 15px;
+      color: #64748b;
+    }
+
+    select {
+      width: 100%;
+      height: 38px;
+      padding: 0 38px 0 40px;
+      appearance: none;
+      color: #1f2937;
+      background: #fff;
+      border: 1px solid #cfd7e2;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    select:hover:not(:disabled) { border-color: #94a3b8; }
+    select:disabled { color: #94a3b8; background: #f8fafc; cursor: not-allowed; }
+
+    .settings-footer {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .check-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #334155;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .check-label input {
+      width: 17px;
+      height: 17px;
+      margin: 0;
+      accent-color: var(--primary);
+    }
+
+    .engine-status {
+      margin-top: 12px;
+      padding-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      border-top: 1px solid #eef1f5;
+      font-size: 12px;
+    }
+
+    .engine-status svg { width: 15px; height: 15px; }
+    .engine-status.ready { color: #059669; }
+    .engine-status.ready { display: none; }
+    .engine-status.error { color: var(--danger); }
+
+    .notice {
+      margin-top: 12px;
+      padding: 9px 12px;
+      display: none;
+      align-items: flex-start;
+      gap: 8px;
+      color: #92400e;
+      background: var(--warning-soft);
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .notice.visible { display: flex; }
+    .notice svg { width: 17px; height: 17px; flex: 0 0 17px; margin-top: 1px; }
+
+    .progress-panel {
+      padding-top: 12px;
+      padding-bottom: 12px;
+      display: none;
+    }
+    .progress-panel.visible { display: block; }
+
+    .progress-row {
+      display: grid;
+      grid-template-columns: auto 54px minmax(140px, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .progress-title { font-weight: 650; }
+    .progress-count { color: var(--primary); font-weight: 700; }
+
+    .progress-track {
+      height: 14px;
+      overflow: hidden;
+      background: #e5e7eb;
+      border-radius: 999px;
+    }
+
+    .progress-fill {
+      width: 0;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      background: var(--primary);
+      border-radius: inherit;
+      font-size: 10px;
+      font-weight: 700;
+      transition: width 160ms ease;
+    }
+
+    .progress-file {
+      max-width: 210px;
+      overflow: hidden;
+      color: var(--muted);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    .results-panel { padding: 14px 12px 12px; }
+
+    .results-header {
+      margin: 0 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .results-header .section-heading { margin: 0; }
+    .results-actions { display: flex; gap: 10px; }
+
+    .results-list {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .empty-state {
+      padding: 62px 20px;
+      color: #94a3b8;
+      text-align: center;
+    }
+    .empty-state svg { width: 46px; height: 46px; margin-bottom: 8px; color: #cbd5e1; }
+    .empty-state p { margin: 0; }
+
+    .result-row {
+      min-height: 52px;
+      padding: 7px 12px;
+      display: grid;
+      grid-template-columns: minmax(190px, 1.6fr) 62px 118px 118px 110px minmax(190px, 1.25fr) 34px;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #e7ebf0;
+    }
+    .result-row:last-child { border-bottom: 0; }
+
+    .file-cell {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .file-icon {
+      width: 28px;
+      height: 32px;
+      flex: 0 0 28px;
+      color: var(--primary);
+    }
+
+    .file-name {
+      min-width: 0;
+      overflow: hidden;
+      color: #1e293b;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 560;
+    }
+
+    .meta-cell {
+      color: #475569;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .status svg { width: 16px; height: 16px; }
+    .status.complete { color: #059669; }
+    .status.processing { color: var(--primary); }
+    .status.queued { color: #64748b; }
+    .status.skipped { color: var(--warning); }
+    .status.failed { color: var(--danger); }
+
+    .row-progress {
+      width: 76px;
+      height: 5px;
+      overflow: hidden;
+      background: #dbeafe;
+      border-radius: 999px;
+    }
+    .row-progress span { display: block; height: 100%; background: var(--primary); }
+
+    audio {
+      width: 100%;
+      min-width: 175px;
+      height: 32px;
+      display: block;
+    }
+
+    .audio-placeholder {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      display: inline-grid;
+      place-items: center;
+      color: var(--primary);
+      background: transparent;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .icon-button:hover:not(:disabled) { background: var(--primary-soft); }
+    .icon-button:disabled { color: #cbd5e1; cursor: not-allowed; }
+    .icon-button svg { width: 18px; height: 18px; }
+
+    .error-message {
+      grid-column: 2 / -1;
+      margin-top: -4px;
+      color: #b91c1c;
+      font-size: 12px;
+    }
+
+    .pagination {
+      margin: 14px 8px 2px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .pagination.visible { display: flex; }
+    .page-actions { display: flex; align-items: center; gap: 7px; }
+    .page-button {
+      min-width: 34px;
+      height: 32px;
+      padding: 0 10px;
+      color: #334155;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .page-button:hover:not(:disabled), .page-button.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+    .page-button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .toast-region {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 20;
+      display: grid;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      max-width: min(420px, calc(100vw - 40px));
+      padding: 11px 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      color: #fff;
+      background: #334155;
+      border-radius: 7px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2);
+      animation: toast-in 180ms ease-out;
+      font-size: 13px;
+    }
+    .toast.error { background: #b91c1c; }
+    .toast.success { background: #047857; }
+    .toast svg { width: 17px; height: 17px; flex: 0 0 17px; }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 960px) {
+      .result-row {
+        grid-template-columns: minmax(180px, 1.5fr) 58px 105px 105px 105px 34px;
+      }
+      .result-row audio, .result-row .audio-placeholder { grid-column: 1 / -1; }
+      .error-message { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 680px) {
+      .app { width: min(100% - 20px, 1138px); padding-top: 16px; }
+      .hero { margin-bottom: 14px; }
+      .hero h1 { font-size: 28px; }
+      .hero p { font-size: 14px; }
+      .panel { padding: 15px 13px; }
+      .upload-area { min-height: 190px; padding: 18px 12px; }
+      .settings-grid { grid-template-columns: 1fr; }
+      .settings-footer { align-items: stretch; flex-direction: column; }
+      .settings-footer .button { width: 100%; }
+      .results-header { align-items: flex-start; flex-direction: column; }
+      .results-actions { width: 100%; }
+      .results-actions .button { flex: 1; padding-left: 10px; padding-right: 10px; }
+      .progress-row { grid-template-columns: auto 1fr; gap: 8px 12px; }
+      .progress-count { text-align: right; }
+      .progress-track, .progress-file { grid-column: 1 / -1; max-width: none; }
+      .result-row {
+        padding: 12px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px 12px;
+      }
+      .file-cell { grid-column: 1 / 2; }
+      .result-row > .meta-cell { display: inline; white-space: normal; }
+      .result-row > .meta-cell:nth-of-type(1)::before { content: "时长 "; color: #94a3b8; }
+      .result-row > .meta-cell:nth-of-type(2)::before { content: "原始 "; color: #94a3b8; }
+      .result-row > .meta-cell:nth-of-type(3)::before { content: "输出 "; color: #94a3b8; }
+      .status { grid-column: 1 / 2; }
+      .result-row audio, .result-row .audio-placeholder { grid-column: 1 / -1; }
+      .result-row .icon-button { grid-column: 2; grid-row: 1; }
+      .error-message { grid-column: 1 / -1; }
+      .pagination { align-items: stretch; flex-direction: column; }
+      .page-actions { justify-content: center; flex-wrap: wrap; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <h1>音频格式转换工具</h1>
+      <p>批量转换音频格式，所有处理均在浏览器本地完成</p>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="upload-heading">
+        <h2 class="section-heading" id="upload-heading"><span class="step">1</span>上传音频</h2>
+        <div class="upload-area" id="upload-area" tabindex="0" role="group" aria-label="音频文件上传区" aria-controls="file-input">
+          <div class="upload-content">
+            <i data-lucide="cloud-upload" class="upload-icon" aria-hidden="true"></i>
+            <p class="upload-title">拖拽音频到此处或点击上传</p>
+            <p class="upload-hint">支持 MP3、WAV、OGG、FLAC、AAC、M4A、OPUS、WEBM 等常见格式，最多选择 100 个文件</p>
+            <p class="selected-summary" id="selected-summary" hidden></p>
+            <input class="file-input" id="file-input" type="file" multiple
+              accept=".mp3,.wav,.wave,.ogg,.oga,.flac,.aac,.m4a,.opus,.webm,audio/*">
+            <button class="button button-primary" id="upload-button" type="button">
+              <i data-lucide="folder-open" aria-hidden="true"></i>
+              选择音频
+            </button>
+          </div>
+        </div>
+        <div class="notice" id="large-file-notice" role="status">
+          <i data-lucide="triangle-alert" aria-hidden="true"></i>
+          <span id="large-file-message"></span>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="settings-heading">
+        <h2 class="section-heading" id="settings-heading"><span class="step">2</span>转换设置</h2>
+        <div class="settings-grid">
+          <div class="field">
+            <label for="target-format">目标格式</label>
+            <div class="select-wrap">
+              <i data-lucide="music-2" class="select-icon" aria-hidden="true"></i>
+              <select id="target-format">
+                <option value="mp3">MP3</option>
+                <option value="wav">WAV</option>
+                <option value="ogg">OGG</option>
+                <option value="flac">FLAC</option>
+                <option value="aac">AAC</option>
+                <option value="m4a">M4A</option>
+              </select>
+              <i data-lucide="chevron-down" class="select-chevron" aria-hidden="true"></i>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="bitrate">音频码率</label>
+            <div class="select-wrap">
+              <i data-lucide="audio-lines" class="select-icon" aria-hidden="true"></i>
+              <select id="bitrate">
+                <option value="64k">64 kbps</option>
+                <option value="96k">96 kbps</option>
+                <option value="128k" selected>128 kbps</option>
+                <option value="160k">160 kbps</option>
+                <option value="192k">192 kbps</option>
+                <option value="256k">256 kbps</option>
+                <option value="320k">320 kbps</option>
+              </select>
+              <i data-lucide="chevron-down" class="select-chevron" aria-hidden="true"></i>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="sample-rate">采样率</label>
+            <div class="select-wrap">
+              <i data-lucide="sliders-horizontal" class="select-icon" aria-hidden="true"></i>
+              <select id="sample-rate">
+                <option value="">保持原始采样率</option>
+                <option value="8000">8000 Hz</option>
+                <option value="16000">16000 Hz</option>
+                <option value="22050">22050 Hz</option>
+                <option value="44100" selected>44100 Hz</option>
+                <option value="48000">48000 Hz</option>
+              </select>
+              <i data-lucide="chevron-down" class="select-chevron" aria-hidden="true"></i>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="channels">声道</label>
+            <div class="select-wrap">
+              <i data-lucide="volume-2" class="select-icon" aria-hidden="true"></i>
+              <select id="channels">
+                <option value="">保持原始声道</option>
+                <option value="1">单声道</option>
+                <option value="2" selected>立体声</option>
+              </select>
+              <i data-lucide="chevron-down" class="select-chevron" aria-hidden="true"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-footer">
+          <label class="check-label">
+            <input id="skip-same-format" type="checkbox" checked>
+            <span>跳过与目标格式相同的文件</span>
+          </label>
+          <button class="button button-primary" id="convert-button" type="button" disabled>
+            <i data-lucide="play" aria-hidden="true"></i>
+            开始转换
+          </button>
+        </div>
+
+        <div class="engine-status" id="engine-status" aria-live="polite">
+          <i data-lucide="cpu" aria-hidden="true"></i>
+          <span>转换引擎将在首次使用时从本地加载（约 32 MB）</span>
+        </div>
+      </section>
+
+      <section class="panel progress-panel" id="progress-panel" aria-label="转换进度">
+        <div class="progress-row">
+          <span class="progress-title">转换进度</span>
+          <span class="progress-count" id="progress-count">0 / 0</span>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-track">
+            <div class="progress-fill" id="progress-fill">0%</div>
+          </div>
+          <span class="progress-file" id="progress-file">准备中</span>
+        </div>
+      </section>
+
+      <section class="panel results-panel" aria-labelledby="results-heading">
+        <div class="results-header">
+          <h2 class="section-heading" id="results-heading"><span class="step">3</span>转换结果</h2>
+          <div class="results-actions">
+            <button class="button button-secondary" id="download-all-button" type="button" disabled>
+              <i data-lucide="download" aria-hidden="true"></i>
+              下载全部
+            </button>
+            <button class="button button-danger" id="clear-button" type="button" disabled>
+              <i data-lucide="trash-2" aria-hidden="true"></i>
+              清空列表
+            </button>
+          </div>
+        </div>
+
+        <div class="results-list" id="results-list">
+          <div class="empty-state" id="empty-state">
+            <i data-lucide="file-music" aria-hidden="true"></i>
+            <p>暂无转换结果</p>
+          </div>
+        </div>
+
+        <div class="pagination" id="pagination">
+          <span id="pagination-summary"></span>
+          <div class="page-actions" id="page-actions"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const MAX_FILES = 100;
+      const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
+      const LARGE_FILE_SIZE = 500 * 1024 * 1024;
+      const ITEMS_PER_PAGE = 25;
+      const CORE_BASE_URL = new URL("vendor/ffmpeg-core/", document.baseURI).href;
+
+      const outputFormats = {
+        mp3: { extension: ".mp3", mime: "audio/mpeg", codec: ["-c:a", "libmp3lame"] },
+        wav: { extension: ".wav", mime: "audio/wav", codec: ["-c:a", "pcm_s16le"], lossless: true },
+        ogg: { extension: ".ogg", mime: "audio/ogg", codec: ["-c:a", "libvorbis"] },
+        flac: { extension: ".flac", mime: "audio/flac", codec: ["-c:a", "flac"], lossless: true },
+        aac: { extension: ".aac", mime: "audio/aac", codec: ["-c:a", "aac"], extra: ["-f", "adts"] },
+        m4a: { extension: ".m4a", mime: "audio/mp4", codec: ["-c:a", "aac"], extra: ["-movflags", "+faststart"] }
+      };
+
+      const acceptedExtensions = new Set(["mp3", "wav", "wave", "ogg", "oga", "flac", "aac", "m4a", "opus", "webm"]);
+      const state = {
+        items: [],
+        page: 1,
+        processing: false,
+        engine: null,
+        enginePromise: null,
+        currentItem: null,
+        currentProgress: 0
+      };
+
+      const elements = {
+        uploadArea: document.getElementById("upload-area"),
+        uploadButton: document.getElementById("upload-button"),
+        fileInput: document.getElementById("file-input"),
+        selectedSummary: document.getElementById("selected-summary"),
+        largeFileNotice: document.getElementById("large-file-notice"),
+        largeFileMessage: document.getElementById("large-file-message"),
+        targetFormat: document.getElementById("target-format"),
+        bitrate: document.getElementById("bitrate"),
+        sampleRate: document.getElementById("sample-rate"),
+        channels: document.getElementById("channels"),
+        skipSameFormat: document.getElementById("skip-same-format"),
+        convertButton: document.getElementById("convert-button"),
+        engineStatus: document.getElementById("engine-status"),
+        progressPanel: document.getElementById("progress-panel"),
+        progressCount: document.getElementById("progress-count"),
+        progressTrack: document.getElementById("progress-track"),
+        progressFill: document.getElementById("progress-fill"),
+        progressFile: document.getElementById("progress-file"),
+        resultsList: document.getElementById("results-list"),
+        emptyState: document.getElementById("empty-state"),
+        downloadAllButton: document.getElementById("download-all-button"),
+        clearButton: document.getElementById("clear-button"),
+        pagination: document.getElementById("pagination"),
+        paginationSummary: document.getElementById("pagination-summary"),
+        pageActions: document.getElementById("page-actions"),
+        toastRegion: document.getElementById("toast-region")
+      };
+
+      function createId() {
+        return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+      }
+
+      function getExtension(name) {
+        const match = name.toLowerCase().match(/\.([^.]+)$/);
+        return match ? match[1] : "";
+      }
+
+      function normalizeFormat(extension) {
+        if (extension === "wave") return "wav";
+        if (extension === "oga") return "ogg";
+        return extension;
+      }
+
+      function baseName(name) {
+        const dot = name.lastIndexOf(".");
+        return dot > 0 ? name.slice(0, dot) : name;
+      }
+
+      function safeVirtualName(name) {
+        return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "audio";
+      }
+
+      function formatBytes(bytes) {
+        if (!Number.isFinite(bytes)) return "—";
+        if (bytes === 0) return "0 B";
+        const units = ["B", "KB", "MB", "GB"];
+        const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
+      }
+
+      function formatDuration(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return "—";
+        const whole = Math.round(seconds);
+        const hours = Math.floor(whole / 3600);
+        const minutes = Math.floor((whole % 3600) / 60);
+        const secs = whole % 60;
+        return hours > 0
+          ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+          : `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function showToast(message, type = "") {
+        const toast = document.createElement("div");
+        toast.className = `toast ${type}`.trim();
+        const icon = type === "error" ? "circle-alert" : type === "success" ? "circle-check" : "info";
+        toast.innerHTML = `<i data-lucide="${icon}" aria-hidden="true"></i><span>${escapeHtml(message)}</span>`;
+        elements.toastRegion.appendChild(toast);
+        lucide.createIcons({ nodes: [toast] });
+        setTimeout(() => toast.remove(), 4200);
+      }
+
+      function getStatusMarkup(item) {
+        const details = {
+          queued: ["clock-3", "等待中"],
+          processing: ["loader-circle", `转换中 ${Math.round(item.progress || 0)}%`],
+          complete: ["circle-check", "转换完成"],
+          skipped: ["circle-minus", "已跳过"],
+          failed: ["circle-x", "转换失败"]
+        };
+        const [icon, label] = details[item.status] || details.queued;
+        const progress = item.status === "processing"
+          ? `<span class="row-progress" aria-hidden="true"><span style="width:${Math.round(item.progress || 0)}%"></span></span>`
+          : "";
+        return `<span class="status ${item.status}"><i data-lucide="${icon}" aria-hidden="true"></i>${label}</span>${progress}`;
+      }
+
+      function renderResults() {
+        const totalPages = Math.max(1, Math.ceil(state.items.length / ITEMS_PER_PAGE));
+        state.page = Math.min(state.page, totalPages);
+        const start = (state.page - 1) * ITEMS_PER_PAGE;
+        const pageItems = state.items.slice(start, start + ITEMS_PER_PAGE);
+
+        if (state.items.length === 0) {
+          elements.resultsList.innerHTML = `
+            <div class="empty-state" id="empty-state">
+              <i data-lucide="file-music" aria-hidden="true"></i>
+              <p>暂无转换结果</p>
+            </div>`;
+        } else {
+          elements.resultsList.innerHTML = pageItems.map(item => {
+            const playable = item.outputUrl && (item.status === "complete" || item.status === "skipped");
+            const displayName = item.outputName || item.file.name;
+            const audio = playable
+              ? `<audio controls preload="metadata" src="${escapeHtml(item.outputUrl)}"></audio>`
+              : `<span class="audio-placeholder">${item.status === "failed" ? "无法试听" : "转换完成后可试听"}</span>`;
+            const error = item.error ? `<div class="error-message" title="${escapeHtml(item.error)}">${escapeHtml(item.error)}</div>` : "";
+            return `
+              <article class="result-row" data-id="${item.id}">
+                <div class="file-cell">
+                  <i data-lucide="file-music" class="file-icon" aria-hidden="true"></i>
+                  <span class="file-name" title="原文件：${escapeHtml(item.file.name)}">${escapeHtml(displayName)}</span>
+                </div>
+                <span class="meta-cell">${formatDuration(item.duration)}</span>
+                <span class="meta-cell">原始: ${formatBytes(item.file.size)}</span>
+                <span class="meta-cell">输出: ${formatBytes(item.outputBlob?.size)}</span>
+                <div>${getStatusMarkup(item)}</div>
+                ${audio}
+                <button class="icon-button download-one" type="button" title="下载文件" aria-label="下载 ${escapeHtml(displayName)}"
+                  ${playable ? "" : "disabled"}>
+                  <i data-lucide="download" aria-hidden="true"></i>
+                </button>
+                ${error}
+              </article>`;
+          }).join("");
+        }
+
+        elements.resultsList.querySelectorAll(".download-one").forEach(button => {
+          button.addEventListener("click", () => {
+            const row = button.closest(".result-row");
+            const item = state.items.find(candidate => candidate.id === row.dataset.id);
+            if (item) downloadItem(item);
+          });
+        });
+
+        renderPagination();
+        lucide.createIcons({ nodes: [elements.resultsList, elements.pagination] });
+      }
+
+      function renderPagination() {
+        const totalPages = Math.ceil(state.items.length / ITEMS_PER_PAGE);
+        if (totalPages <= 1) {
+          elements.pagination.classList.remove("visible");
+          return;
+        }
+
+        elements.pagination.classList.add("visible");
+        elements.paginationSummary.textContent = `第 ${state.page} 页 / 共 ${totalPages} 页（共 ${state.items.length} 个文件）`;
+        const pages = [];
+        const from = Math.max(1, state.page - 2);
+        const to = Math.min(totalPages, from + 4);
+
+        pages.push(`<button class="page-button" data-page="${state.page - 1}" ${state.page === 1 ? "disabled" : ""}>上一页</button>`);
+        for (let page = from; page <= to; page++) {
+          pages.push(`<button class="page-button ${page === state.page ? "active" : ""}" data-page="${page}">${page}</button>`);
+        }
+        pages.push(`<button class="page-button" data-page="${state.page + 1}" ${state.page === totalPages ? "disabled" : ""}>下一页</button>`);
+        elements.pageActions.innerHTML = pages.join("");
+        elements.pageActions.querySelectorAll("button:not(:disabled)").forEach(button => {
+          button.addEventListener("click", () => {
+            state.page = Number(button.dataset.page);
+            renderResults();
+            document.getElementById("results-heading").scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        });
+      }
+
+      function updateControls() {
+        const hasItems = state.items.length > 0;
+        const hasDownloads = state.items.some(item => item.outputBlob && ["complete", "skipped"].includes(item.status));
+        elements.convertButton.disabled = !hasItems || state.processing;
+        elements.uploadButton.disabled = state.processing;
+        elements.fileInput.disabled = state.processing;
+        elements.clearButton.disabled = !hasItems || state.processing;
+        elements.downloadAllButton.disabled = !hasDownloads || state.processing;
+        elements.targetFormat.disabled = state.processing;
+        elements.bitrate.disabled = state.processing || outputFormats[elements.targetFormat.value].lossless;
+        elements.sampleRate.disabled = state.processing;
+        elements.channels.disabled = state.processing;
+        elements.skipSameFormat.disabled = state.processing;
+
+        if (hasItems) {
+          elements.selectedSummary.hidden = false;
+          elements.selectedSummary.textContent = `已选择 ${state.items.length} 个音频文件，点击可继续添加`;
+        } else {
+          elements.selectedSummary.hidden = true;
+          elements.selectedSummary.textContent = "";
+        }
+      }
+
+      function updateLargeFileNotice() {
+        const largeFiles = state.items.filter(item => item.file.size > LARGE_FILE_SIZE);
+        if (largeFiles.length) {
+          elements.largeFileMessage.textContent = `有 ${largeFiles.length} 个文件超过 500 MB，浏览器转换可能耗时较长并占用较多内存。`;
+          elements.largeFileNotice.classList.add("visible");
+        } else {
+          elements.largeFileNotice.classList.remove("visible");
+        }
+      }
+
+      function extractBrowserDuration(file) {
+        return new Promise(resolve => {
+          const audio = document.createElement("audio");
+          const url = URL.createObjectURL(file);
+          const finish = duration => {
+            URL.revokeObjectURL(url);
+            audio.removeAttribute("src");
+            resolve(Number.isFinite(duration) ? duration : null);
+          };
+          const timeout = setTimeout(() => finish(null), 5000);
+          audio.preload = "metadata";
+          audio.onloadedmetadata = () => {
+            clearTimeout(timeout);
+            finish(audio.duration);
+          };
+          audio.onerror = () => {
+            clearTimeout(timeout);
+            finish(null);
+          };
+          audio.src = url;
+        });
+      }
+
+      async function addFiles(fileList) {
+        if (state.processing) return;
+        const incoming = Array.from(fileList);
+        const rejectedType = [];
+        const rejectedSize = [];
+        const available = MAX_FILES - state.items.length;
+        const accepted = [];
+
+        for (const file of incoming.slice(0, Math.max(0, available))) {
+          const extension = getExtension(file.name);
+          const isAudio = file.type.startsWith("audio/") || acceptedExtensions.has(extension);
+          if (!isAudio) {
+            rejectedType.push(file.name);
+          } else if (file.size >= MAX_FILE_SIZE) {
+            rejectedSize.push(file.name);
+          } else {
+            accepted.push(file);
+          }
+        }
+
+        if (incoming.length > available) {
+          showToast(`最多选择 ${MAX_FILES} 个文件，本次只添加了前 ${Math.max(0, available)} 个。`, "error");
+        }
+        if (rejectedType.length) showToast(`已忽略 ${rejectedType.length} 个不支持的文件。`, "error");
+        if (rejectedSize.length) showToast(`已拒绝 ${rejectedSize.length} 个达到或超过 2 GB 的文件。`, "error");
+
+        const newItems = accepted.map(file => ({
+          id: createId(),
+          file,
+          duration: null,
+          status: "queued",
+          progress: 0,
+          outputBlob: null,
+          outputUrl: "",
+          outputName: "",
+          error: ""
+        }));
+        state.items.push(...newItems);
+        state.page = Math.ceil(state.items.length / ITEMS_PER_PAGE) || 1;
+
+        updateControls();
+        updateLargeFileNotice();
+        renderResults();
+        elements.fileInput.value = "";
+
+        await Promise.all(newItems.map(async item => {
+          item.duration = await extractBrowserDuration(item.file);
+        }));
+        renderResults();
+      }
+
+      function updateEngineStatus(message, className = "") {
+        elements.engineStatus.className = `engine-status ${className}`.trim();
+        const icon = className === "ready" ? "circle-check" : className === "error" ? "circle-alert" : "cpu";
+        elements.engineStatus.innerHTML = `<i data-lucide="${icon}" aria-hidden="true"></i><span>${escapeHtml(message)}</span>`;
+        lucide.createIcons({ nodes: [elements.engineStatus] });
+      }
+
+      async function loadEngine() {
+        if (state.engine?.loaded) return state.engine;
+        if (state.enginePromise) return state.enginePromise;
+
+        if (location.protocol === "file:") {
+          throw new Error("浏览器安全策略不允许从 file:// 启动转换线程，请运行“启动音频转换工具.cmd”后访问本地地址。");
+        }
+        if (!window.FFmpegWASM?.FFmpeg) {
+          throw new Error("FFmpeg 包装器未加载，请检查 vendor/ffmpeg 目录。");
+        }
+
+        state.enginePromise = (async () => {
+          updateEngineStatus("正在从本地加载转换引擎，请稍候…");
+          const engine = new FFmpegWASM.FFmpeg();
+          engine.on("progress", ({ progress }) => {
+            if (!state.currentItem || !Number.isFinite(progress)) return;
+            const clamped = Math.max(0, Math.min(1, progress));
+            state.currentProgress = clamped * 100;
+            state.currentItem.progress = state.currentProgress;
+            updateProgress();
+            const row = elements.resultsList.querySelector(`[data-id="${state.currentItem.id}"]`);
+            if (row) {
+              const statusCell = row.querySelector(".status")?.parentElement;
+              if (statusCell) {
+                statusCell.innerHTML = getStatusMarkup(state.currentItem);
+                lucide.createIcons({ nodes: [statusCell] });
+              }
+            }
+          });
+          engine.on("log", ({ message }) => {
+            if (!state.currentItem || state.currentItem.duration) return;
+            const match = message.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+            if (match) {
+              state.currentItem.duration = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+            }
+          });
+          await engine.load({
+            coreURL: `${CORE_BASE_URL}ffmpeg-core.js`,
+            wasmURL: `${CORE_BASE_URL}ffmpeg-core.wasm`
+          });
+          state.engine = engine;
+          updateEngineStatus("转换引擎已就绪，所有文件均在本机浏览器中处理", "ready");
+          return engine;
+        })();
+
+        try {
+          return await state.enginePromise;
+        } catch (error) {
+          state.enginePromise = null;
+          updateEngineStatus(error.message || "转换引擎加载失败", "error");
+          throw error;
+        }
+      }
+
+      function buildArguments(inputPath, outputPath) {
+        const formatKey = elements.targetFormat.value;
+        const format = outputFormats[formatKey];
+        const args = ["-hide_banner", "-y", "-i", inputPath, "-vn", ...format.codec];
+
+        if (!format.lossless) args.push("-b:a", elements.bitrate.value);
+        if (elements.sampleRate.value) args.push("-ar", elements.sampleRate.value);
+        if (elements.channels.value) args.push("-ac", elements.channels.value);
+        if (format.extra) args.push(...format.extra);
+        args.push(outputPath);
+        return args;
+      }
+
+      function createOutputUrl(item) {
+        if (item.outputUrl) URL.revokeObjectURL(item.outputUrl);
+        item.outputUrl = URL.createObjectURL(item.outputBlob);
+      }
+
+      async function convertItem(engine, item, index, total) {
+        const targetKey = elements.targetFormat.value;
+        const sourceFormat = normalizeFormat(getExtension(item.file.name));
+        const outputFormat = outputFormats[targetKey];
+        state.currentItem = item;
+        state.currentProgress = 0;
+        item.error = "";
+
+        if (elements.skipSameFormat.checked && sourceFormat === targetKey) {
+          item.status = "skipped";
+          item.progress = 100;
+          item.outputBlob = item.file;
+          item.outputName = item.file.name;
+          createOutputUrl(item);
+          updateProgress(index + 1, total);
+          renderResults();
+          return;
+        }
+
+        item.status = "processing";
+        item.progress = 0;
+        renderResults();
+        updateProgress(index, total);
+
+        const inputExt = getExtension(item.file.name) || "bin";
+        const token = item.id.replace(/[^a-z0-9]/gi, "");
+        const inputPath = `input_${token}.${safeVirtualName(inputExt)}`;
+        const outputPath = `output_${token}${outputFormat.extension}`;
+
+        try {
+          const bytes = new Uint8Array(await item.file.arrayBuffer());
+          await engine.writeFile(inputPath, bytes);
+          const exitCode = await engine.exec(buildArguments(inputPath, outputPath));
+          if (exitCode !== 0) throw new Error(`FFmpeg 返回错误代码 ${exitCode}`);
+
+          const outputData = await engine.readFile(outputPath);
+          item.outputBlob = new Blob([outputData.buffer], { type: outputFormat.mime });
+          item.outputName = `${baseName(item.file.name)}${outputFormat.extension}`;
+          item.progress = 100;
+          item.status = "complete";
+          createOutputUrl(item);
+
+          if (!item.duration) {
+            item.duration = await extractBrowserDuration(item.outputBlob);
+          }
+        } catch (error) {
+          item.status = "failed";
+          item.progress = 0;
+          item.error = error?.message || "未知转换错误";
+        } finally {
+          await Promise.allSettled([
+            engine.deleteFile(inputPath),
+            engine.deleteFile(outputPath)
+          ]);
+          updateProgress(index + 1, total);
+          renderResults();
+        }
+      }
+
+      function updateProgress(completedOverride, totalOverride) {
+        const total = totalOverride ?? state.items.length;
+        const currentIndex = state.currentItem
+          ? state.items.indexOf(state.currentItem)
+          : 0;
+        const completed = completedOverride ?? currentIndex;
+        const itemFraction = state.currentItem?.status === "processing" ? state.currentProgress / 100 : 0;
+        const percent = total ? Math.min(100, ((completed + itemFraction) / total) * 100) : 0;
+
+        elements.progressPanel.classList.add("visible");
+        elements.progressCount.textContent = `${Math.min(completed + (state.currentItem?.status === "processing" ? 1 : 0), total)} / ${total}`;
+        elements.progressFill.style.width = `${percent}%`;
+        elements.progressFill.textContent = `${Math.round(percent)}%`;
+        elements.progressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
+        elements.progressFile.textContent = state.currentItem?.file.name || "准备中";
+      }
+
+      async function startConversion() {
+        if (!state.items.length || state.processing) return;
+        state.processing = true;
+        state.page = 1;
+        updateControls();
+        elements.progressPanel.classList.add("visible");
+
+        state.items.forEach(item => {
+          if (item.outputUrl) URL.revokeObjectURL(item.outputUrl);
+          item.status = "queued";
+          item.progress = 0;
+          item.outputBlob = null;
+          item.outputUrl = "";
+          item.outputName = "";
+          item.error = "";
+        });
+        renderResults();
+
+        try {
+          const engine = await loadEngine();
+          for (let index = 0; index < state.items.length; index++) {
+            await convertItem(engine, state.items[index], index, state.items.length);
+          }
+          const completed = state.items.filter(item => ["complete", "skipped"].includes(item.status)).length;
+          const failed = state.items.filter(item => item.status === "failed").length;
+          elements.progressFile.textContent = failed ? `完成 ${completed} 个，失败 ${failed} 个` : "全部转换完成";
+          showToast(failed ? `转换完成：成功 ${completed} 个，失败 ${failed} 个。` : `已完成 ${completed} 个文件。`, failed ? "" : "success");
+        } catch (error) {
+          showToast(error?.message || "转换引擎加载失败。", "error");
+        } finally {
+          state.currentItem = null;
+          state.currentProgress = 0;
+          state.processing = false;
+          updateControls();
+          renderResults();
+        }
+      }
+
+      function triggerDownload(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      function downloadItem(item) {
+        if (item.outputBlob) triggerDownload(item.outputBlob, item.outputName);
+      }
+
+      function uniqueArchiveName(name, counts) {
+        const key = name.toLowerCase();
+        const count = counts.get(key) || 0;
+        counts.set(key, count + 1);
+        if (count === 0) return name;
+        const extensionIndex = name.lastIndexOf(".");
+        const stem = extensionIndex > 0 ? name.slice(0, extensionIndex) : name;
+        const extension = extensionIndex > 0 ? name.slice(extensionIndex) : "";
+        return `${stem} (${count + 1})${extension}`;
+      }
+
+      async function downloadAll() {
+        const downloadable = state.items.filter(item => item.outputBlob && ["complete", "skipped"].includes(item.status));
+        if (!downloadable.length) return;
+        elements.downloadAllButton.disabled = true;
+        elements.downloadAllButton.innerHTML = `<i data-lucide="loader-circle"></i>正在打包`;
+        lucide.createIcons({ nodes: [elements.downloadAllButton] });
+
+        try {
+          const zip = new JSZip();
+          const names = new Map();
+          downloadable.forEach(item => {
+            zip.file(uniqueArchiveName(item.outputName, names), item.outputBlob);
+          });
+          const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+          triggerDownload(blob, `converted-audio-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`);
+        } catch (error) {
+          showToast(`打包失败：${error?.message || "未知错误"}`, "error");
+        } finally {
+          elements.downloadAllButton.innerHTML = `<i data-lucide="download"></i>下载全部`;
+          updateControls();
+          lucide.createIcons({ nodes: [elements.downloadAllButton] });
+        }
+      }
+
+      async function clearAll() {
+        if (state.processing) return;
+        state.items.forEach(item => {
+          if (item.outputUrl) URL.revokeObjectURL(item.outputUrl);
+        });
+        state.items = [];
+        state.page = 1;
+        state.currentItem = null;
+        elements.progressPanel.classList.remove("visible");
+        elements.progressFill.style.width = "0%";
+        elements.fileInput.value = "";
+        updateControls();
+        updateLargeFileNotice();
+        renderResults();
+      }
+
+      function openFileDialog(event) {
+        event?.stopPropagation();
+        if (!state.processing) elements.fileInput.click();
+      }
+
+      elements.uploadArea.addEventListener("click", event => {
+        if (!event.target.closest("#upload-button")) openFileDialog(event);
+      });
+      elements.uploadArea.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openFileDialog(event);
+        }
+      });
+      elements.uploadButton.addEventListener("click", openFileDialog);
+      elements.fileInput.addEventListener("change", event => addFiles(event.target.files));
+
+      ["dragenter", "dragover"].forEach(type => {
+        elements.uploadArea.addEventListener(type, event => {
+          event.preventDefault();
+          if (!state.processing) elements.uploadArea.classList.add("dragging");
+        });
+      });
+      ["dragleave", "drop"].forEach(type => {
+        elements.uploadArea.addEventListener(type, event => {
+          event.preventDefault();
+          elements.uploadArea.classList.remove("dragging");
+        });
+      });
+      elements.uploadArea.addEventListener("drop", event => {
+        if (!state.processing) addFiles(event.dataTransfer.files);
+      });
+
+      elements.targetFormat.addEventListener("change", updateControls);
+      elements.convertButton.addEventListener("click", startConversion);
+      elements.downloadAllButton.addEventListener("click", downloadAll);
+      elements.clearButton.addEventListener("click", clearAll);
+
+      window.addEventListener("beforeunload", () => {
+        state.items.forEach(item => {
+          if (item.outputUrl) URL.revokeObjectURL(item.outputUrl);
+        });
+        if (state.engine) state.engine.terminate();
+      });
+
+      lucide.createIcons();
+      updateControls();
+      renderResults();
+
+      if (location.protocol === "file:") {
+        updateEngineStatus("请运行“启动音频转换工具.cmd”后使用；直接双击 HTML 无法启动浏览器转换线程", "error");
+      }
+    })();
+  </script>
+</body>
+</html>
