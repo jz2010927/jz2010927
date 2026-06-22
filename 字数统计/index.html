@@ -1,0 +1,1425 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1200">
+  <title>字数统计器</title>
+  <meta name="description" content="在浏览器本地统计总字数、净字数、行数、中文、英文单词、句子、段落等文本数据。">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23175cd3'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-size='38' font-family='sans-serif' font-weight='700' fill='white'%3E%E5%AD%97%3C/text%3E%3C/svg%3E">
+  <style>
+    :root {
+      --page: #f3f5f8;
+      --surface: #ffffff;
+      --surface-blue: #f3f7ff;
+      --ink: #121722;
+      --muted: #697386;
+      --line: #dce1e9;
+      --line-strong: #c9d2df;
+      --blue: #175cd3;
+      --blue-dark: #124cb6;
+      --blue-soft: #e9f1ff;
+      --danger: #c43232;
+      --radius: 14px;
+      --shadow: 0 12px 36px rgba(20, 31, 54, .07);
+      --editor-font: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --editor-size: 17px;
+      --reader-paper: #fbfcff;
+      --reader-ink: #202838;
+    }
+
+    body[data-theme="green"] {
+      --page: #edf3ee;
+      --surface: #fbfdfb;
+      --surface-blue: #edf7f0;
+      --ink: #18241d;
+      --muted: #68766d;
+      --line: #d3dfd6;
+      --line-strong: #bfcec3;
+      --blue: #397557;
+      --blue-dark: #285f43;
+      --blue-soft: #e2f0e7;
+      --reader-paper: #f4faf5;
+      --reader-ink: #22372a;
+      --shadow: 0 12px 36px rgba(32, 66, 44, .07);
+    }
+
+    body[data-theme="paper"] {
+      --page: #f1eee5;
+      --surface: #fffdf7;
+      --surface-blue: #f8f1df;
+      --ink: #2f2a21;
+      --muted: #756d60;
+      --line: #ded6c5;
+      --line-strong: #cdc2ad;
+      --blue: #8a6734;
+      --blue-dark: #725326;
+      --blue-soft: #f1e5cf;
+      --reader-paper: #fbf3df;
+      --reader-ink: #3f3526;
+      --shadow: 0 12px 36px rgba(68, 53, 29, .07);
+    }
+
+    body[data-theme="night"] {
+      --page: #252b2b;
+      --surface: #303736;
+      --surface-blue: #384341;
+      --ink: #e5ece8;
+      --muted: #aab7b1;
+      --line: #4b5552;
+      --line-strong: #5d6865;
+      --blue: #78a993;
+      --blue-dark: #9ac5b2;
+      --blue-soft: #40534b;
+      --reader-paper: #343d3a;
+      --reader-ink: #dce8e2;
+      --shadow: 0 12px 36px rgba(0, 0, 0, .18);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-width: 1120px; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: var(--page);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, textarea, select, input { font: inherit; }
+
+    button:focus-visible, textarea:focus-visible, a:focus-visible {
+      outline: 3px solid rgba(23, 92, 211, .22);
+      outline-offset: 2px;
+    }
+
+    .app {
+      width: min(1480px, calc(100% - 48px));
+      min-height: calc(100vh - 48px);
+      margin: 24px auto;
+      padding: 0 28px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .header {
+      height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--blue);
+      border-radius: 10px;
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -.08em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 25px;
+      line-height: 1;
+      letter-spacing: -.03em;
+    }
+
+    .privacy {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .privacy svg { color: #23805a; }
+
+    .header-tools {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .control-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .select-control, .page-input {
+      height: 36px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      cursor: pointer;
+    }
+
+    .select-control {
+      min-width: 108px;
+      padding: 0 30px 0 10px;
+    }
+
+    .primary-stats {
+      margin-top: 24px;
+      min-height: 164px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: center;
+      background: var(--surface-blue);
+      border: 1px solid var(--blue);
+      border-radius: var(--radius);
+      box-shadow: inset 0 0 0 1px rgba(23, 92, 211, .06);
+    }
+
+    .primary-stat {
+      position: relative;
+      text-align: center;
+      padding: 22px 20px 18px;
+    }
+
+    .primary-stat + .primary-stat::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 16%;
+      height: 68%;
+      width: 1px;
+      background: #bdc9da;
+    }
+
+    .primary-label {
+      margin-bottom: 6px;
+      color: var(--ink);
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .primary-value {
+      color: var(--blue-dark);
+      font-size: clamp(54px, 5vw, 74px);
+      line-height: 1;
+      font-weight: 750;
+      letter-spacing: -.045em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 2.15fr) minmax(300px, .85fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .editor-panel, .stats-panel {
+      min-height: 540px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .editor-panel {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      padding: 14px;
+    }
+
+    .toolbar {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .editor-settings {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin: -2px 0 10px;
+      padding: 7px 10px;
+      color: var(--muted);
+      background: var(--page);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .editor-settings .select-control { height: 32px; }
+    #fontFamily { min-width: 150px; }
+    #fontSize { min-width: 84px; }
+
+    .settings-note {
+      margin-left: auto;
+      font-size: 12px;
+    }
+
+    .button {
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 0 16px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease;
+    }
+
+    .button:hover {
+      color: var(--blue);
+      border-color: var(--blue);
+      background: var(--surface-blue);
+    }
+
+    .button:active { transform: translateY(1px); }
+
+    .button.primary {
+      color: #fff;
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .button.primary:hover {
+      color: #fff;
+      background: var(--blue-dark);
+      border-color: var(--blue-dark);
+    }
+
+    .button.danger:hover {
+      color: var(--danger);
+      border-color: #e3aaaa;
+      background: var(--surface);
+    }
+
+    .file-chip {
+      min-width: 0;
+      max-width: 360px;
+      height: 40px;
+      margin-left: auto;
+      display: none;
+      align-items: center;
+      gap: 9px;
+      padding: 0 9px 0 12px;
+      color: var(--muted);
+      background: var(--page);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .file-chip.visible { display: flex; }
+    .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { flex: none; color: var(--muted); }
+
+    .chip-close {
+      width: 25px;
+      height: 25px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .chip-close:hover { color: var(--ink); background: var(--line); }
+
+    .editor-wrap {
+      position: relative;
+      min-height: 0;
+      flex: 1;
+    }
+
+    #textInput {
+      width: 100%;
+      height: 100%;
+      min-height: 470px;
+      resize: none;
+      display: block;
+      padding: 20px 21px 102px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid #aeb8c7;
+      border-radius: 10px;
+      font-family: var(--editor-font);
+      font-size: var(--editor-size);
+      line-height: 1.85;
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+
+    #textInput::placeholder { color: var(--muted); }
+
+    #textInput:focus {
+      outline: 0;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(23, 92, 211, .12);
+    }
+
+    .drop-zone {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 12px 18px;
+      color: var(--muted);
+      background: var(--surface-blue);
+      border: 1px dashed var(--blue);
+      border-radius: 8px;
+      pointer-events: none;
+      transition: background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    .drop-zone svg { color: var(--blue); }
+    .drop-title { color: var(--ink); font-size: 14px; font-weight: 650; }
+    .drop-hint { margin-top: 4px; font-size: 12px; }
+
+    .editor-panel.dragging .drop-zone {
+      background: #e9f2ff;
+      border-color: var(--blue);
+      transform: translateY(-2px);
+    }
+
+    .stats-panel { padding: 24px 24px 18px; }
+
+    .stats-panel h2 {
+      margin: 0 0 14px;
+      font-size: 19px;
+      letter-spacing: -.02em;
+    }
+
+    .secondary-list { margin: 0; }
+
+    .secondary-row {
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-bottom: 1px dashed #dfe3e9;
+    }
+
+    .secondary-row:last-child { border-bottom: 0; }
+
+    .secondary-row dt {
+      color: #586375;
+      font-size: 14px;
+    }
+
+    .secondary-row dd {
+      margin: 0;
+      color: var(--ink);
+      font-size: 19px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .footer {
+      min-height: 66px;
+      display: flex;
+      align-items: center;
+      gap: 34px;
+      margin-top: 18px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .footer strong { color: var(--ink); font-weight: 600; }
+    .definition-button {
+      margin-left: auto;
+      padding: 5px 0;
+      color: var(--blue);
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      font-weight: 650;
+    }
+
+    .definition-button:hover { text-decoration: underline; }
+
+    .reader-section {
+      display: none;
+      margin-top: 18px;
+      padding: 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .reader-section.open { display: block; }
+
+    .reader-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .reader-header h2 {
+      margin: 0;
+      font-size: 19px;
+    }
+
+    .reader-summary {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .reader-options {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .reader-shell {
+      position: relative;
+      height: 560px;
+      overflow: hidden;
+      perspective: 1800px;
+      background: var(--reader-paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      box-shadow: inset 0 0 35px rgba(38, 48, 62, .035);
+    }
+
+    .reader-page {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      padding: 52px 76px 58px;
+      color: var(--reader-ink);
+      background: var(--reader-paper);
+      font-family: var(--editor-font);
+      font-size: var(--editor-size);
+      line-height: 2;
+      letter-spacing: .035em;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      transform-style: preserve-3d;
+      backface-visibility: hidden;
+    }
+
+    .reader-page.empty {
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .reader-corner {
+      position: absolute;
+      right: 22px;
+      bottom: 16px;
+      z-index: 3;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+    }
+
+    .reader-page.effect-flip.next { animation: pageFlipNext .48s cubic-bezier(.2, .72, .25, 1); transform-origin: left center; }
+    .reader-page.effect-flip.prev { animation: pageFlipPrev .48s cubic-bezier(.2, .72, .25, 1); transform-origin: right center; }
+    .reader-page.effect-slide.next { animation: pageSlideNext .36s ease-out; }
+    .reader-page.effect-slide.prev { animation: pageSlidePrev .36s ease-out; }
+    .reader-page.effect-cover.next { animation: pageCoverNext .42s ease-out; }
+    .reader-page.effect-cover.prev { animation: pageCoverPrev .42s ease-out; }
+    .reader-page.effect-vertical.next { animation: pageVerticalNext .38s ease-out; }
+    .reader-page.effect-vertical.prev { animation: pageVerticalPrev .38s ease-out; }
+
+    @keyframes pageFlipNext {
+      from { opacity: .45; transform: rotateY(-78deg); box-shadow: -35px 0 50px rgba(0, 0, 0, .2); }
+      to { opacity: 1; transform: rotateY(0); box-shadow: none; }
+    }
+    @keyframes pageFlipPrev {
+      from { opacity: .45; transform: rotateY(78deg); box-shadow: 35px 0 50px rgba(0, 0, 0, .2); }
+      to { opacity: 1; transform: rotateY(0); box-shadow: none; }
+    }
+    @keyframes pageSlideNext { from { opacity: .35; transform: translateX(22%); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes pageSlidePrev { from { opacity: .35; transform: translateX(-22%); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes pageCoverNext { from { transform: translateX(100%); box-shadow: -20px 0 38px rgba(0, 0, 0, .16); } to { transform: translateX(0); box-shadow: none; } }
+    @keyframes pageCoverPrev { from { transform: translateX(-100%); box-shadow: 20px 0 38px rgba(0, 0, 0, .16); } to { transform: translateX(0); box-shadow: none; } }
+    @keyframes pageVerticalNext { from { opacity: .4; transform: translateY(25%); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pageVerticalPrev { from { opacity: .4; transform: translateY(-25%); } to { opacity: 1; transform: translateY(0); } }
+
+    .reader-pagination {
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 7px;
+      padding-top: 14px;
+    }
+
+    .page-button {
+      min-width: 38px;
+      height: 34px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .page-button:hover:not(:disabled) { color: var(--blue); border-color: var(--blue); }
+    .page-button.active { color: #fff; background: var(--blue); border-color: var(--blue); }
+    .page-button:disabled { opacity: .42; cursor: not-allowed; }
+    .page-ellipsis { color: var(--muted); padding: 0 2px; }
+
+    .page-jump {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 7px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .page-input {
+      width: 58px;
+      padding: 0 7px;
+      text-align: center;
+      cursor: text;
+    }
+
+    .reader-measure {
+      position: fixed;
+      left: -100000px;
+      top: 0;
+      visibility: hidden;
+      overflow: hidden;
+      padding: 52px 76px 58px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-family: var(--editor-font);
+      font-size: var(--editor-size);
+      line-height: 2;
+      letter-spacing: .035em;
+      box-sizing: border-box;
+    }
+
+    dialog {
+      width: 650px;
+      padding: 0;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 24px 70px rgba(20, 31, 54, .2);
+    }
+
+    dialog::backdrop { background: rgba(23, 30, 43, .35); }
+
+    .dialog-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .dialog-head h2 { margin: 0; font-size: 19px; }
+    .dialog-close {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    .dialog-close:hover { color: var(--ink); background: #f0f2f5; }
+
+    .definitions {
+      margin: 0;
+      padding: 20px 26px 25px 42px;
+      color: #4f5a6c;
+      font-size: 14px;
+      line-height: 1.75;
+    }
+
+    .definitions li + li { margin-top: 7px; }
+    .definitions strong { color: var(--ink); }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 34px;
+      z-index: 20;
+      max-width: 600px;
+      padding: 11px 16px;
+      color: #fff;
+      background: #252d3a;
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, .18);
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 12px);
+      transition: opacity .2s ease, transform .2s ease;
+    }
+
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">字</div>
+        <h1>字数统计器</h1>
+      </div>
+      <div class="header-tools">
+        <label class="control-label">
+          配色
+          <select class="select-control" id="themeSelect">
+            <option value="default">清爽蓝</option>
+            <option value="green">护眼绿</option>
+            <option value="paper">暖纸色</option>
+            <option value="night">深灰绿</option>
+          </select>
+        </label>
+        <div class="privacy">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3 5 6v5c0 4.7 2.9 8.2 7 10 4.1-1.8 7-5.3 7-10V6l-7-3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          所有内容仅在本地处理
+        </div>
+      </div>
+    </header>
+
+    <section class="primary-stats" aria-label="主要统计">
+      <div class="primary-stat">
+        <div class="primary-label">总字数</div>
+        <div class="primary-value" id="totalChars">0</div>
+      </div>
+      <div class="primary-stat">
+        <div class="primary-label">净字数</div>
+        <div class="primary-value" id="netChars">0</div>
+      </div>
+      <div class="primary-stat">
+        <div class="primary-label">总行数</div>
+        <div class="primary-value" id="totalLines">0</div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <section class="editor-panel" id="editorPanel">
+        <div class="toolbar">
+          <button class="button primary" id="uploadButton" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            上传文件
+          </button>
+          <button class="button" id="pasteButton" type="button">粘贴文本</button>
+          <button class="button danger" id="clearButton" type="button">清空</button>
+          <button class="button" id="readerToggle" type="button">开启阅读</button>
+          <div class="file-chip" id="fileChip">
+            <span class="file-name" id="fileName"></span>
+            <span class="file-size" id="fileSize"></span>
+            <button class="chip-close" id="removeFile" type="button" aria-label="移除文件信息">×</button>
+          </div>
+          <input id="fileInput" type="file" hidden accept=".txt,.text,.md,.markdown,.html,.htm,.css,.csv,.tsv,.json,.jsonl,.xml,.yaml,.yml,.toml,.ini,.conf,.log,.rtf,.docx,.py,.pyw,.js,.jsx,.mjs,.cjs,.ts,.tsx,.java,.c,.h,.cpp,.cc,.cxx,.hpp,.cs,.go,.rs,.php,.rb,.swift,.kt,.kts,.scala,.sh,.bash,.zsh,.ps1,.bat,.cmd,.sql,.vue,.svelte,.astro,.tex,.gradle,.properties,.env,.gitignore,.dockerfile">
+        </div>
+
+        <div class="editor-settings">
+          <label class="control-label">
+            文本字体
+            <select class="select-control" id="fontFamily">
+              <option value="system">系统黑体</option>
+              <option value="song">宋体</option>
+              <option value="kai">楷体</option>
+              <option value="fangsong">仿宋</option>
+              <option value="mono">等宽字体</option>
+            </select>
+          </label>
+          <label class="control-label">
+            字号
+            <select class="select-control" id="fontSize">
+              <option value="14">14 px</option>
+              <option value="16">16 px</option>
+              <option value="17" selected>17 px</option>
+              <option value="18">18 px</option>
+              <option value="20">20 px</option>
+              <option value="22">22 px</option>
+              <option value="24">24 px</option>
+              <option value="28">28 px</option>
+              <option value="32">32 px</option>
+            </select>
+          </label>
+          <span class="settings-note">字体设置同时应用于下方阅读区</span>
+        </div>
+
+        <div class="editor-wrap">
+          <textarea id="textInput" spellcheck="false" placeholder="在这里输入、粘贴文本，或拖入文件…"></textarea>
+          <div class="drop-zone" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M12 15V4m0 0L8 8m4-4 4 4M5 13v6h14v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div>
+              <div class="drop-title">拖入文件到此处，或点击“上传文件”</div>
+              <div class="drop-hint">支持 TXT、Markdown、HTML、JSON、DOCX 及常见代码文件</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="stats-panel">
+        <h2>统计信息</h2>
+        <dl class="secondary-list">
+          <div class="secondary-row"><dt>纯中文字数</dt><dd id="chineseChars">0</dd></div>
+          <div class="secondary-row"><dt>英文单词数</dt><dd id="englishWords">0</dd></div>
+          <div class="secondary-row"><dt>句子总数</dt><dd id="sentences">0</dd></div>
+          <div class="secondary-row"><dt>段落总数</dt><dd id="paragraphs">0</dd></div>
+          <div class="secondary-row"><dt>数字个数</dt><dd id="digits">0</dd></div>
+          <div class="secondary-row"><dt>标点符号数</dt><dd id="punctuation">0</dd></div>
+          <div class="secondary-row"><dt>空白字符数</dt><dd id="whitespace">0</dd></div>
+          <div class="secondary-row"><dt>最长段落字数</dt><dd id="longestParagraph">0</dd></div>
+        </dl>
+      </aside>
+    </section>
+
+    <section class="reader-section" id="readerSection" aria-label="分页阅读区">
+      <div class="reader-header">
+        <h2>分页阅读</h2>
+        <span class="reader-summary" id="readerSummary">尚未生成页面</span>
+        <div class="reader-options">
+          <label class="control-label">
+            翻页效果
+            <select class="select-control" id="pageEffect">
+              <option value="flip">仿真</option>
+              <option value="slide">平移</option>
+              <option value="cover">覆盖</option>
+              <option value="vertical">上下</option>
+              <option value="none">无动画</option>
+            </select>
+          </label>
+          <button class="button" id="readerClose" type="button">关闭阅读</button>
+        </div>
+      </div>
+      <div class="reader-shell" id="readerShell">
+        <div class="reader-page empty" id="readerPage">编辑框中暂无可阅读的文本</div>
+        <span class="reader-corner" id="readerCorner">0 / 0</span>
+      </div>
+      <nav class="reader-pagination" id="readerPagination" aria-label="阅读翻页"></nav>
+    </section>
+
+    <footer class="footer">
+      <span>编码：<strong id="encoding">—</strong></span>
+      <span>文件：<strong id="footerFile">未载入文件</strong></span>
+      <span>最后更新：<strong id="lastUpdated">—</strong></span>
+      <button class="definition-button" id="definitionButton" type="button">统计项定义说明</button>
+    </footer>
+  </main>
+
+  <dialog id="definitionDialog">
+    <div class="dialog-head">
+      <h2>统计项定义说明</h2>
+      <button class="dialog-close" id="dialogClose" type="button" aria-label="关闭">×</button>
+    </div>
+    <ol class="definitions">
+      <li><strong>总字数：</strong>所有 Unicode 字符的总数，包含空格、制表符和换行。</li>
+      <li><strong>纯中文字数：</strong>Unicode 汉字字符的数量，包含简体、繁体及常见扩展汉字。</li>
+      <li><strong>英文单词数：</strong>连续英文字母视为一个单词，单词内的撇号和连字符可保留。</li>
+      <li><strong>净字数：</strong>总字符中排除所有空白字符后的数量，标点仍计入。</li>
+      <li><strong>句子总数：</strong>按句号、问号、感叹号、省略号等句末符号划分；末尾无标点的文字也计一句。</li>
+      <li><strong>段落总数：</strong>由一个或多个空白行分隔的非空文本块数量。</li>
+      <li><strong>数字个数：</strong>逐个统计 0–9 数字字符。</li>
+      <li><strong>标点符号数：</strong>按 Unicode 标点类别统计中英文标点。</li>
+      <li><strong>空白字符数：</strong>空格、制表符、换行及其他 Unicode 空白字符的总数。</li>
+      <li><strong>总行数：</strong>非空文本的换行符数量加一；空文本为 0 行。</li>
+      <li><strong>最长段落字数：</strong>最长段落排除空白和标点后的字符数量。</li>
+    </ol>
+  </dialog>
+
+  <div class="reader-measure" id="readerMeasure" aria-hidden="true"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script>
+    (() => {
+      "use strict";
+
+      const $ = (id) => document.getElementById(id);
+      const textInput = $("textInput");
+      const editorPanel = $("editorPanel");
+      const fileInput = $("fileInput");
+      const numberFormat = new Intl.NumberFormat("zh-CN");
+      let currentFile = null;
+      let toastTimer = null;
+      let updateTimer = null;
+      let readerUpdateTimer = null;
+      let readerPages = [];
+      let currentReaderPage = 0;
+      let readerOpen = false;
+
+      const fontFamilies = {
+        system: '"Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+        song: '"SimSun", "Songti SC", "STSong", serif',
+        kai: '"KaiTi", "Kaiti SC", "STKaiti", serif',
+        fangsong: '"FangSong", "STFangsong", serif',
+        mono: '"Cascadia Mono", "Consolas", "Microsoft YaHei", monospace'
+      };
+
+      const outputIds = [
+        "totalChars", "netChars", "totalLines", "chineseChars", "englishWords",
+        "sentences", "paragraphs", "digits", "punctuation", "whitespace", "longestParagraph"
+      ];
+
+      function codePoints(value) {
+        return Array.from(value);
+      }
+
+      function countMatches(value, regex) {
+        return (value.match(regex) || []).length;
+      }
+
+      function splitParagraphs(value) {
+        const normalized = value.replace(/\r\n?/g, "\n").trim();
+        return normalized ? normalized.split(/\n[ \t\u3000]*\n+/).filter(part => part.trim()) : [];
+      }
+
+      function countSentences(value) {
+        const content = value.trim();
+        if (!content) return 0;
+        return content
+          .split(/(?:[。！？!?]+|\.{3,}|…{1,})(?:["'”’」』】）)]*)/)
+          .filter(part => part.trim()).length;
+      }
+
+      function analyze(value) {
+        const chars = codePoints(value);
+        const paragraphs = splitParagraphs(value);
+        const longestParagraph = paragraphs.reduce((max, paragraph) => {
+          const length = codePoints(paragraph).filter(char => !/[\s\p{P}]/u.test(char)).length;
+          return Math.max(max, length);
+        }, 0);
+
+        return {
+          totalChars: chars.length,
+          chineseChars: chars.filter(char => /\p{Script=Han}/u.test(char)).length,
+          englishWords: countMatches(value, /[A-Za-z]+(?:['’\-][A-Za-z]+)*/g),
+          netChars: chars.filter(char => !/\s/u.test(char)).length,
+          sentences: countSentences(value),
+          paragraphs: paragraphs.length,
+          digits: countMatches(value, /[0-9]/g),
+          punctuation: chars.filter(char => /\p{P}/u.test(char)).length,
+          whitespace: chars.filter(char => /\s/u.test(char)).length,
+          totalLines: value.length ? value.replace(/\r\n?/g, "\n").split("\n").length : 0,
+          longestParagraph
+        };
+      }
+
+      function renderStats() {
+        const result = analyze(textInput.value);
+        outputIds.forEach(id => {
+          $(id).textContent = numberFormat.format(result[id]);
+        });
+        $("lastUpdated").textContent = textInput.value ? "刚刚" : "—";
+      }
+
+      function scheduleUpdate() {
+        clearTimeout(updateTimer);
+        updateTimer = setTimeout(renderStats, 35);
+        if (readerOpen) {
+          clearTimeout(readerUpdateTimer);
+          readerUpdateTimer = setTimeout(() => paginateReader(true), 260);
+        }
+      }
+
+      function saveSetting(key, value) {
+        try { localStorage.setItem(`word-counter-${key}`, value); } catch {}
+      }
+
+      function loadSetting(key, fallback) {
+        try { return localStorage.getItem(`word-counter-${key}`) || fallback; } catch { return fallback; }
+      }
+
+      function applyTheme(theme) {
+        document.body.dataset.theme = theme === "default" ? "" : theme;
+        $("themeSelect").value = theme;
+        saveSetting("theme", theme);
+      }
+
+      function applyFontSettings(fontKey, size) {
+        const family = fontFamilies[fontKey] || fontFamilies.system;
+        document.documentElement.style.setProperty("--editor-font", family);
+        document.documentElement.style.setProperty("--editor-size", `${size}px`);
+        $("fontFamily").value = fontKey;
+        $("fontSize").value = String(size);
+        saveSetting("font", fontKey);
+        saveSetting("font-size", String(size));
+        if (readerOpen) {
+          clearTimeout(readerUpdateTimer);
+          readerUpdateTimer = setTimeout(() => paginateReader(true), 80);
+        }
+      }
+
+      function pageFits(measure, text) {
+        measure.textContent = text || " ";
+        return measure.scrollHeight <= measure.clientHeight + 1;
+      }
+
+      function paginateReader(keepPage = false) {
+        if (!readerOpen) return;
+        const content = textInput.value.replace(/\r\n?/g, "\n");
+        const oldPage = currentReaderPage;
+        readerPages = [];
+
+        if (!content) {
+          currentReaderPage = 0;
+          renderReaderPage("none");
+          return;
+        }
+
+        const shell = $("readerShell");
+        const measure = $("readerMeasure");
+        measure.style.width = `${shell.clientWidth}px`;
+        measure.style.height = `${shell.clientHeight}px`;
+        const chars = Array.from(content);
+        let start = 0;
+
+        while (start < chars.length) {
+          let low = start + 1;
+          let high = Math.min(chars.length, start + 8000);
+          let best = low;
+
+          while (low <= high) {
+            const middle = Math.floor((low + high) / 2);
+            if (pageFits(measure, chars.slice(start, middle).join(""))) {
+              best = middle;
+              low = middle + 1;
+            } else {
+              high = middle - 1;
+            }
+          }
+
+          if (best <= start) best = start + 1;
+          let end = best;
+          if (end < chars.length) {
+            const pageText = chars.slice(start, end).join("");
+            const breakAt = Math.max(pageText.lastIndexOf("\n"), pageText.lastIndexOf("。"), pageText.lastIndexOf("！"), pageText.lastIndexOf("？"));
+            if (breakAt > pageText.length * .72) end = start + Array.from(pageText.slice(0, breakAt + 1)).length;
+          }
+
+          readerPages.push(chars.slice(start, end).join(""));
+          start = end;
+        }
+
+        currentReaderPage = keepPage ? Math.min(oldPage, readerPages.length - 1) : 0;
+        renderReaderPage("none");
+      }
+
+      function createPageButton(label, action, options = {}) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `page-button${options.active ? " active" : ""}`;
+        button.textContent = label;
+        button.disabled = Boolean(options.disabled);
+        if (!button.disabled) button.addEventListener("click", action);
+        return button;
+      }
+
+      function renderPagination() {
+        const nav = $("readerPagination");
+        nav.replaceChildren();
+        const total = readerPages.length;
+        const disabled = total === 0;
+
+        nav.append(
+          createPageButton("首页", () => goToReaderPage(0, "prev"), { disabled: disabled || currentReaderPage === 0 }),
+          createPageButton("上一页", () => goToReaderPage(currentReaderPage - 1, "prev"), { disabled: disabled || currentReaderPage === 0 })
+        );
+
+        if (total) {
+          let pages;
+          if (total <= 9) {
+            pages = Array.from({ length: total }, (_, index) => index);
+          } else {
+            const indexes = new Set([0, 1, total - 2, total - 1]);
+            for (let index = currentReaderPage - 2; index <= currentReaderPage + 2; index++) {
+              if (index >= 0 && index < total) indexes.add(index);
+            }
+            pages = [...indexes].sort((a, b) => a - b);
+          }
+
+          let previous = -1;
+          pages.forEach(index => {
+            if (previous >= 0 && index - previous > 1) {
+              const ellipsis = document.createElement("span");
+              ellipsis.className = "page-ellipsis";
+              ellipsis.textContent = "…";
+              nav.append(ellipsis);
+            }
+            nav.append(createPageButton(`第${index + 1}页`, () => goToReaderPage(index), { active: index === currentReaderPage }));
+            previous = index;
+          });
+        }
+
+        nav.append(
+          createPageButton("下一页", () => goToReaderPage(currentReaderPage + 1, "next"), { disabled: disabled || currentReaderPage >= total - 1 }),
+          createPageButton("最后一页", () => goToReaderPage(total - 1, "next"), { disabled: disabled || currentReaderPage >= total - 1 })
+        );
+
+        const jump = document.createElement("label");
+        jump.className = "page-jump";
+        jump.append("输入页码");
+        const input = document.createElement("input");
+        input.className = "page-input";
+        input.type = "number";
+        input.min = "1";
+        input.max = String(Math.max(1, total));
+        input.placeholder = "页";
+        input.disabled = disabled;
+        input.addEventListener("keydown", event => {
+          if (event.key === "Enter") {
+            const target = Math.min(total, Math.max(1, Number(input.value) || 1)) - 1;
+            goToReaderPage(target);
+            input.value = "";
+          }
+        });
+        jump.append("[", input, "]");
+        nav.append(jump);
+      }
+
+      function renderReaderPage(direction = "next") {
+        const page = $("readerPage");
+        const total = readerPages.length;
+        page.className = "reader-page";
+
+        if (!total) {
+          page.classList.add("empty");
+          page.textContent = "编辑框中暂无可阅读的文本";
+          $("readerCorner").textContent = "0 / 0";
+          $("readerSummary").textContent = "尚未生成页面";
+          renderPagination();
+          return;
+        }
+
+        page.textContent = readerPages[currentReaderPage];
+        $("readerCorner").textContent = `${currentReaderPage + 1} / ${total}`;
+        $("readerSummary").textContent = `共 ${numberFormat.format(total)} 页 · 当前第 ${currentReaderPage + 1} 页`;
+        const effect = $("pageEffect").value;
+        if (effect !== "none" && direction !== "none") {
+          void page.offsetWidth;
+          page.classList.add(`effect-${effect}`, direction);
+        }
+        renderPagination();
+      }
+
+      function goToReaderPage(index, forcedDirection) {
+        if (!readerPages.length) return;
+        const target = Math.min(readerPages.length - 1, Math.max(0, index));
+        if (target === currentReaderPage) return;
+        const direction = forcedDirection || (target > currentReaderPage ? "next" : "prev");
+        currentReaderPage = target;
+        renderReaderPage(direction);
+      }
+
+      function openReader() {
+        readerOpen = true;
+        $("readerSection").classList.add("open");
+        $("readerToggle").textContent = "关闭阅读";
+        paginateReader(false);
+        $("readerSection").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function closeReader() {
+        readerOpen = false;
+        $("readerSection").classList.remove("open");
+        $("readerToggle").textContent = "开启阅读";
+      }
+
+      function toggleReader() {
+        if (readerOpen) closeReader();
+        else openReader();
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        $("toast").textContent = message;
+        $("toast").classList.add("show");
+        toastTimer = setTimeout(() => $("toast").classList.remove("show"), 2600);
+      }
+
+      function formatBytes(bytes) {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+      }
+
+      function setFileInfo(file, encoding) {
+        currentFile = file;
+        $("fileName").textContent = file.name;
+        $("fileSize").textContent = formatBytes(file.size);
+        $("fileChip").classList.add("visible");
+        $("footerFile").textContent = `${file.name} (${formatBytes(file.size)})`;
+        $("encoding").textContent = encoding;
+      }
+
+      function clearFileInfo() {
+        currentFile = null;
+        fileInput.value = "";
+        $("fileChip").classList.remove("visible");
+        $("footerFile").textContent = "未载入文件";
+        $("encoding").textContent = textInput.value ? "手动输入" : "—";
+      }
+
+      async function extractDocx(file) {
+        if (!window.JSZip) throw new Error("DOCX 解析组件未能加载");
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const documentFile = zip.file("word/document.xml");
+        if (!documentFile) throw new Error("无法找到 DOCX 正文");
+        const xml = await documentFile.async("string");
+        const doc = new DOMParser().parseFromString(xml, "application/xml");
+        if (doc.querySelector("parsererror")) throw new Error("DOCX 正文格式无效");
+
+        const paragraphs = Array.from(doc.getElementsByTagNameNS("*", "p"));
+        return paragraphs.map(paragraph => {
+          let text = "";
+          const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_ELEMENT);
+          let node = walker.currentNode;
+          while (node) {
+            const name = node.localName;
+            if (name === "t") text += node.textContent || "";
+            else if (name === "tab") text += "\t";
+            else if (name === "br" || name === "cr") text += "\n";
+            node = walker.nextNode();
+          }
+          return text;
+        }).join("\n");
+      }
+
+      function stripRtf(rtf) {
+        return rtf
+          .replace(/\\par[d]?/g, "\n")
+          .replace(/\\tab/g, "\t")
+          .replace(/\\u(-?\d+)\??/g, (_, value) => String.fromCharCode(Number(value) < 0 ? Number(value) + 65536 : Number(value)))
+          .replace(/\\'[0-9a-fA-F]{2}/g, "")
+          .replace(/\\[a-zA-Z]+-?\d* ?/g, "")
+          .replace(/[{}]/g, "")
+          .replace(/\r\n?/g, "\n");
+      }
+
+      async function decodeTextFile(file) {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let encoding = "UTF-8";
+        let offset = 0;
+
+        if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+          offset = 3;
+          encoding = "UTF-8 BOM";
+        } else if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
+          return { text: new TextDecoder("utf-16le").decode(bytes.subarray(2)), encoding: "UTF-16 LE" };
+        } else if (bytes[0] === 0xFE && bytes[1] === 0xFF) {
+          const swapped = bytes.slice(2);
+          for (let i = 0; i + 1 < swapped.length; i += 2) {
+            [swapped[i], swapped[i + 1]] = [swapped[i + 1], swapped[i]];
+          }
+          return { text: new TextDecoder("utf-16le").decode(swapped), encoding: "UTF-16 BE" };
+        }
+
+        try {
+          return {
+            text: new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(offset)),
+            encoding
+          };
+        } catch {
+          try {
+            return { text: new TextDecoder("gb18030").decode(bytes), encoding: "GB18030 / GBK" };
+          } catch {
+            return { text: new TextDecoder("utf-8").decode(bytes), encoding: "UTF-8（已替换无效字符）" };
+          }
+        }
+      }
+
+      async function loadFile(file) {
+        if (!file) return;
+        if (file.size > 25 * 1024 * 1024) {
+          showToast("文件超过 25 MB，浏览器处理可能较慢");
+        }
+
+        const extension = file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "";
+        try {
+          let text;
+          let encoding;
+          if (extension === "docx") {
+            text = await extractDocx(file);
+            encoding = "DOCX 正文";
+          } else {
+            const decoded = await decodeTextFile(file);
+            text = decoded.text;
+            encoding = decoded.encoding;
+            if (extension === "rtf") text = stripRtf(text);
+          }
+
+          textInput.value = text.replace(/\r\n?/g, "\n");
+          setFileInfo(file, encoding);
+          renderStats();
+          if (readerOpen) paginateReader(false);
+          textInput.focus();
+          showToast(`已读取：${file.name}`);
+        } catch (error) {
+          console.error(error);
+          showToast(`读取失败：${error.message || "不支持的文件格式"}`);
+        }
+      }
+
+      textInput.addEventListener("input", () => {
+        if (!currentFile) $("encoding").textContent = textInput.value ? "手动输入" : "—";
+        scheduleUpdate();
+      });
+
+      $("themeSelect").addEventListener("change", event => {
+        applyTheme(event.target.value);
+        if (readerOpen) {
+          clearTimeout(readerUpdateTimer);
+          readerUpdateTimer = setTimeout(() => paginateReader(true), 60);
+        }
+      });
+
+      $("fontFamily").addEventListener("change", event => {
+        applyFontSettings(event.target.value, $("fontSize").value);
+      });
+
+      $("fontSize").addEventListener("change", event => {
+        applyFontSettings($("fontFamily").value, event.target.value);
+      });
+
+      $("pageEffect").addEventListener("change", event => saveSetting("page-effect", event.target.value));
+      $("readerToggle").addEventListener("click", toggleReader);
+      $("readerClose").addEventListener("click", closeReader);
+
+      $("readerShell").addEventListener("click", event => {
+        if (!readerPages.length) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (event.clientX < rect.left + rect.width / 2) goToReaderPage(currentReaderPage - 1, "prev");
+        else goToReaderPage(currentReaderPage + 1, "next");
+      });
+
+      window.addEventListener("keydown", event => {
+        if (!readerOpen || event.target.matches("textarea, input, select")) return;
+        if (event.key === "ArrowLeft" || event.key === "PageUp") goToReaderPage(currentReaderPage - 1, "prev");
+        if (event.key === "ArrowRight" || event.key === "PageDown") goToReaderPage(currentReaderPage + 1, "next");
+      });
+
+      window.addEventListener("resize", () => {
+        if (!readerOpen) return;
+        clearTimeout(readerUpdateTimer);
+        readerUpdateTimer = setTimeout(() => paginateReader(true), 180);
+      });
+
+      $("uploadButton").addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => loadFile(fileInput.files[0]));
+
+      $("pasteButton").addEventListener("click", async () => {
+        try {
+          const text = await navigator.clipboard.readText();
+          textInput.value = text;
+          clearFileInfo();
+          $("encoding").textContent = text ? "剪贴板文本" : "—";
+          renderStats();
+          if (readerOpen) paginateReader(false);
+          textInput.focus();
+          showToast(text ? "已从剪贴板粘贴" : "剪贴板中没有文本");
+        } catch {
+          textInput.focus();
+          showToast("浏览器未授权读取剪贴板，请使用 Ctrl+V");
+        }
+      });
+
+      $("clearButton").addEventListener("click", () => {
+        textInput.value = "";
+        clearFileInfo();
+        renderStats();
+        if (readerOpen) paginateReader(false);
+        textInput.focus();
+      });
+
+      $("removeFile").addEventListener("click", clearFileInfo);
+
+      ["dragenter", "dragover"].forEach(type => {
+        editorPanel.addEventListener(type, event => {
+          event.preventDefault();
+          editorPanel.classList.add("dragging");
+        });
+      });
+
+      ["dragleave", "drop"].forEach(type => {
+        editorPanel.addEventListener(type, event => {
+          event.preventDefault();
+          editorPanel.classList.remove("dragging");
+        });
+      });
+
+      editorPanel.addEventListener("drop", event => loadFile(event.dataTransfer.files[0]));
+
+      const dialog = $("definitionDialog");
+      $("definitionButton").addEventListener("click", () => dialog.showModal());
+      $("dialogClose").addEventListener("click", () => dialog.close());
+      dialog.addEventListener("click", event => {
+        const rect = dialog.getBoundingClientRect();
+        const inside = event.clientX >= rect.left && event.clientX <= rect.right &&
+          event.clientY >= rect.top && event.clientY <= rect.bottom;
+        if (!inside) dialog.close();
+      });
+
+      const initialTheme = loadSetting("theme", "default");
+      const initialFont = loadSetting("font", "system");
+      const initialSize = loadSetting("font-size", "17");
+      const initialEffect = loadSetting("page-effect", "flip");
+      applyTheme(["default", "green", "paper", "night"].includes(initialTheme) ? initialTheme : "default");
+      applyFontSettings(fontFamilies[initialFont] ? initialFont : "system", initialSize);
+      $("pageEffect").value = ["flip", "slide", "cover", "vertical", "none"].includes(initialEffect) ? initialEffect : "flip";
+      renderStats();
+      textInput.focus();
+    })();
+  </script>
+</body>
+</html>
