@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game Texture Lab</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./src/styles/app.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <aside class="sidebar" aria-label="Texture categories">
+        <div id="categoryTree" class="category-tree"></div>
+      </aside>
+
+      <main class="preview-stage">
+        <section class="canvas-wrap" aria-label="Preview">
+          <canvas id="previewCanvas" width="512" height="512"></canvas>
+        </section>
+        <div class="preview-toolbar">
+          <button id="generateButton" type="button">Generate / Refresh</button>
+          <span id="statusLabel" class="status-label">Adjust parameters, then click Generate</span>
+          <span id="zoomLabel">100%</span>
+        </div>
+      </main>
+
+      <aside class="params-panel" aria-label="Parameters">
+        <div class="panel-header">
+          <div>
+            <h2 id="generatorTitle">Terrain Height Map</h2>
+            <p id="generatorDescription">FBM elevation map</p>
+          </div>
+          <button id="randomizeParamsButton" type="button">Randomize</button>
+        </div>
+        <div class="preset-row">
+          <label>
+            <span id="presetLabel">Preset</span>
+            <select id="presetSelect">
+              <option value="">Default</option>
+            </select>
+          </label>
+          <span id="generatorMetaLabel">Basic</span>
+        </div>
+        <div id="paramPanel" class="param-panel"></div>
+      </aside>
+
+      <footer class="bottom-bar">
+        <div class="export-group">
+          <label>
+            <span id="formatLabel">Format</span>
+            <select id="exportFormat">
+              <option value="image/png">PNG</option>
+              <option value="image/webp">WebP</option>
+            </select>
+          </label>
+          <label>
+            <span id="widthLabel">Width</span>
+            <input id="exportWidth" class="size-input" type="number" min="1" max="8192" step="1" value="512" />
+          </label>
+          <label>
+            <span id="heightLabel">Height</span>
+            <input id="exportHeight" class="size-input" type="number" min="1" max="8192" step="1" value="512" />
+          </label>
+          <label>
+            <span id="backgroundColorLabel">Background</span>
+            <input id="backgroundColor" class="color-input" type="color" value="#050606" />
+          </label>
+          <label class="checkbox-label">
+            <input id="transparentNoise" type="checkbox" />
+            <span id="transparentNoiseLabel">Transparent noise</span>
+          </label>
+          <label>
+            <span id="mapTypeLabel">Map type</span>
+            <select id="mapTypeSelect">
+              <option value="color">Color</option>
+              <option value="height">Height Map</option>
+              <option value="normal">Normal Map</option>
+              <option value="roughness">Roughness</option>
+              <option value="alpha">Alpha Mask</option>
+              <option value="emissive">Emissive Map</option>
+            </select>
+          </label>
+          <label class="checkbox-label">
+            <input id="tileableTexture" type="checkbox" />
+            <span id="tileableLabel">Tileable</span>
+          </label>
+          <button id="exportImageButton" type="button">Export Current Map</button>
+          <button id="exportPackButton" type="button">Export Texture Pack</button>
+          <label class="language-control">
+            <span id="languageLabel">Language</span>
+            <select id="languageSelect">
+              <option value="en" selected>🇺🇸 English</option>
+              <option value="zh">🇨🇳 中文</option>
+            </select>
+          </label>
+        </div>
+      </footer>
+    </div>
+
+    <script defer src="./src/app.bundle.js"></script>
+  </body>
+</html>

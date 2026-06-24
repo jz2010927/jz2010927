@@ -1,0 +1,18 @@
+{
+  "name": "game-texture-lab",
+  "version": "1.0.0",
+  "description": "Static browser procedural texture generator for game assets.",
+  "type": "module",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "build": "node tools/build-bundle.mjs"
+  },
+  "keywords": [
+    "procedural-textures",
+    "canvas",
+    "game-development",
+    "itch.io",
+    "texture-generator"
+  ]
+}
