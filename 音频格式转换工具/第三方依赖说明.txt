@@ -27,3 +27,14 @@
 https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm
 
 除首次补充缺失的 FFmpeg WASM 核心外，音频转换过程不会上传文件。
+
+本地网页服务器
+====================================
+serve.ps1 使用 Windows 自带的 PowerShell / .NET HttpListener 提供
+http://127.0.0.1:8765/ ，不需要安装 Python、Node.js 或任何其它运行时。
+
+之所以必须通过 http:// 打开而不是直接双击 HTML：浏览器安全策略禁止
+file:// 页面创建 Web Worker 与加载本地脚本，而 ffmpeg.wasm 必须在 Worker
+中运行。serve.ps1 会先绑定端口、确认监听成功后再打开浏览器；如果目标端口
+已被占用，会自动顺延到下一个可用端口（8765-8784），如果本工具已在运行则
+直接复用并打开浏览器。
